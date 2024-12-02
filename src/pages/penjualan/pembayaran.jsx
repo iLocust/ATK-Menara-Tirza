@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { transactionService } from '@/lib/db/TransactionService';
 import { 
   ArrowLeft, 
   Wallet, 
@@ -18,12 +19,16 @@ import {
 const Pembayaran = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { cart, subtotal } = location.state;
+  const { cart, subtotal, transactionId } = location.state;
   
+  // State management
   const [paymentMethod, setPaymentMethod] = useState('');
   const [cashAmount, setCashAmount] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState(null);
+  const [dateInput, setDateInput] = useState('');
 
+  // Payment method options
   const paymentMethods = [
     {
       id: 'cash',
@@ -45,6 +50,7 @@ const Pembayaran = () => {
     }
   ];
 
+  // Common cash amounts
   const commonAmounts = [
     { value: 10000, label: '10.000' },
     { value: 20000, label: '20.000' },
@@ -52,34 +58,105 @@ const Pembayaran = () => {
     { value: 100000, label: '100.000' }
   ];
   
-  const change = cashAmount ? parseInt(cashAmount) - subtotal : 0;
+  // Calculate change
+  const change = cashAmount ? parseInt(cashAmount.replace(/\D/g, '')) - subtotal : 0;
 
-  const handlePayment = () => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      console.log('Processing payment:', {
-        method: paymentMethod,
-        amount: cashAmount || 'QRIS/Transfer',
-        total: subtotal,
-        change: change
-      });
-      setIsProcessing(false);
-      navigate('/penjualan');
-    }, 1500);
+  // Format and validate date input
+  const formatDateInput = (input) => {
+    const numbers = input.replace(/\D/g, '');
+    if (numbers.length <= 2) return numbers;
+    if (numbers.length <= 4) return `${numbers.slice(0,2)}/${numbers.slice(2)}`;
+    return `${numbers.slice(0,2)}/${numbers.slice(2,4)}/${numbers.slice(4,8)}`;
   };
+
+  // Convert DD/MM/YYYY to YYYY-MM-DD
+  const convertToISODate = (dateStr) => {
+    const [day, month, year] = dateStr.split('/');
+    return `${year}-${month}-${day}`;
+  };
+
+  const validateDate = (dateStr) => {
+    if (!dateStr.match(/^\d{2}\/\d{2}\/\d{4}$/)) return false;
+    
+    const [day, month, year] = dateStr.split('/').map(Number);
+    const date = new Date(year, month - 1, day);
+    
+    return date instanceof Date && !isNaN(date) &&
+           date.getDate() === day &&
+           date.getMonth() === month - 1 &&
+           date.getFullYear() === year;
+  };
+
+  const handleDateChange = (e) => {
+    const formatted = formatDateInput(e.target.value);
+    setDateInput(formatted);
+  };
+
+  // Handle payment submission
+  const handlePayment = async () => {
+    try {
+      if (!validateDate(dateInput)) {
+        setError('Format tanggal tidak valid. Gunakan format DD/MM/YYYY');
+        return;
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      const transactionData = {
+        transactionId: transactionId,
+        date: convertToISODate(dateInput),
+        subtotal: subtotal,
+        paymentMethod: paymentMethod,
+        cashAmount: paymentMethod === 'cash' ? parseInt(cashAmount.replace(/\D/g, '')) : subtotal,
+        change: paymentMethod === 'cash' ? change : 0,
+        status: 'completed'
+      };
+
+      await transactionService.processTransaction(transactionData, cart);
+
+      navigate('/penjualan', {
+        state: {
+          success: true,
+          message: 'Pembayaran berhasil'
+        }
+      });
+    } catch (err) {
+      setError('Gagal memproses pembayaran: ' + err.message);
+      console.error('Payment error:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Set default date on mount
+  useEffect(() => {
+    const today = new Date();
+    const day = String(today.getDate()).padStart(2, '0');
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+    setDateInput(`${day}/${month}/${year}`);
+  }, []);
 
   return (
     <div className="container mx-auto py-6 max-w-6xl">
       <Button 
         variant="ghost" 
-        className="mb-4 text-white-700 hover:bg-white-100"
+        className="mb-4 text-gray-700 hover:bg-gray-100"
         onClick={() => navigate('/penjualan')}
       >
         <ArrowLeft className="mr-2 h-4 w-4" />
         Kembali ke Penjualan
       </Button>
-      
+
+      {error && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Order Summary Card */}
         <Card className="h-fit shadow-sm">
           <CardHeader className="border-b bg-white">
             <CardTitle className="flex items-center gap-2 text-gray-800">
@@ -93,7 +170,7 @@ const Pembayaran = () => {
                 {cart.map((item) => (
                   <div 
                     key={item.id} 
-                    className="flex justify-between items-center p-3 bg-white rounded-lg border border-gray-100 transition-colors"
+                    className="flex justify-between items-center p-3 bg-white rounded-lg border border-gray-100"
                   >
                     <div className="flex items-center gap-3">
                       <Package2 className="h-5 w-5 text-primary" />
@@ -125,6 +202,7 @@ const Pembayaran = () => {
           </CardContent>
         </Card>
 
+        {/* Payment Method Card */}
         <Card className="h-fit shadow-sm">
           <CardHeader className="border-b bg-white">
             <CardTitle className="flex items-center gap-2 text-gray-800">
@@ -133,6 +211,27 @@ const Pembayaran = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
+            {/* Date Input Section */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Tanggal Transaksi (DD/MM/YYYY)
+                </label>
+                <Input
+                  type="text"
+                  value={dateInput}
+                  onChange={handleDateChange}
+                  placeholder="DD/MM/YYYY"
+                  maxLength="10"
+                  className="bg-white border-gray-200"
+                />
+                <p className="text-xs text-gray-500">
+                  Contoh: 01/12/2024
+                </p>
+              </div>
+            </div>
+
+            {/* Payment Methods */}
             <div className="space-y-4">
               <div className="grid grid-cols-1 gap-3">
                 {paymentMethods.map((method) => {
@@ -163,6 +262,7 @@ const Pembayaran = () => {
                 })}
               </div>
 
+              {/* Payment Details Based on Method */}
               {paymentMethod && (
                 <div className="mt-6 pt-6 border-t">
                   {paymentMethod === 'cash' && (
@@ -182,7 +282,7 @@ const Pembayaran = () => {
                             variant="outline"
                             onClick={() => setCashAmount(value.toString())}
                             className={`font-medium ${
-                              cashAmount === value.toString() 
+                              parseInt(cashAmount?.replace(/\D/g, '') || '0') === value
                                 ? 'bg-primary/10 border-primary text-primary' 
                                 : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:text-primary'
                             }`}
@@ -197,10 +297,15 @@ const Pembayaran = () => {
                           Jumlah Uang Custom
                         </label>
                         <Input
-                          type="number"
+                          type="text"
                           placeholder="Masukkan jumlah uang"
                           value={cashAmount}
-                          onChange={(e) => setCashAmount(e.target.value)}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            const numberOnly = value.replace(/\D/g, '');
+                            const formatted = numberOnly.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+                            setCashAmount(formatted);
+                          }}
                           className="text-lg bg-white border-gray-200 text-gray-800 placeholder-gray-400"
                         />
                       </div>
@@ -213,7 +318,7 @@ const Pembayaran = () => {
                           </div>
                           <div className="flex justify-between text-sm text-gray-700">
                             <span>Jumlah Dibayar:</span>
-                            <span>Rp {parseInt(cashAmount).toLocaleString()}</span>
+                            <span>Rp {parseInt(cashAmount.replace(/\D/g, '')).toLocaleString()}</span>
                           </div>
                           <div className="border-t pt-2">
                             <div className="flex justify-between font-medium">
@@ -258,7 +363,7 @@ const Pembayaran = () => {
 
                   {paymentMethod === 'transfer' && (
                     <div className="space-y-4">
-                      <div className="border rounded-lg p-6 space-y-4 bg-white">
+<div className="border rounded-lg p-6 space-y-4 bg-white">
                         <div className="text-center">
                           <div className="bg-gray-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
                             <Building2 className="w-8 h-8 text-primary" />
@@ -282,7 +387,7 @@ const Pembayaran = () => {
                     size="lg"
                     disabled={
                       !paymentMethod || 
-                      (paymentMethod === 'cash' && (parseInt(cashAmount) < subtotal)) ||
+                      (paymentMethod === 'cash' && (parseInt(cashAmount?.replace(/\D/g, '') || '0') < subtotal)) ||
                       isProcessing
                     }
                     onClick={handlePayment}

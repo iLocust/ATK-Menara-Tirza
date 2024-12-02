@@ -1,36 +1,29 @@
-/* eslint-disable react/prop-types */
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { XMarkIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import {
   HomeIcon,
-  DocumentChartBarIcon,
   CubeIcon,
-  ArchiveBoxIcon,
-  ClipboardDocumentListIcon,
   ArrowDownOnSquareIcon,
   ShoppingCartIcon,
+  WalletIcon,
+  ChartBarIcon,
+  DocumentTextIcon
 } from '@heroicons/react/24/outline';
+import { DatabaseIcon } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { addDummyData } from '@/lib/db/dummy';
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: HomeIcon },
-  { name: 'Laporan', href: '/laporan', icon: DocumentChartBarIcon },
   { name: 'Produk', href: '/produk', icon: CubeIcon },
-  { 
-    name: 'Penjualan', 
-    href: '/penjualan', 
-    icon: ShoppingCartIcon 
-  },
-  {
-    name: 'Inventori',
-    icon: ArchiveBoxIcon,
-    submenu: [
-      { name: 'Kartu Stok', href: '/inventori/kartu-stok', icon: ClipboardDocumentListIcon },
-      { name: 'Stok Masuk', href: '/inventori/stok-masuk', icon: ArrowDownOnSquareIcon },
-    ],
-  },
+  { name: 'Penjualan', href: '/penjualan', icon: ShoppingCartIcon },
+  { name: 'Riwayat Transaksi', href: '/riwayat-transaksi', icon: CubeIcon },
+  { name: 'Stok Masuk', href: '/inventori/stok-masuk', icon: ArrowDownOnSquareIcon },
+  { name: 'Kas Koperasi', href: '/kas', icon: WalletIcon },
+  // { name: 'Ringkasan Bulanan', href: '/summary', icon: ChartBarIcon },
+  // { name: 'Laporan Penjualan', href: '/report', icon: DocumentTextIcon }
 ];
-
 
 const MenuItem = ({ item, onClick }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -84,6 +77,46 @@ const MenuItem = ({ item, onClick }) => {
 };
 
 const Sidebar = ({ isOpen, setIsOpen }) => {
+  const [message, setMessage] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleAddDummyData = async () => {
+    try {
+      setIsLoading(true);
+      const result = await addDummyData();
+      setMessage({ type: 'success', text: result.message });
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Gagal menambahkan data dummy: ' + err.message });
+    } finally {
+      setIsLoading(false);
+      setTimeout(() => setMessage(null), 3000);
+    }
+  };
+
+  const SidebarContent = () => (
+    <>
+      <div className="flex h-16 items-center px-4">
+        <span className="text-xl font-semibold">Koperasi ATK</span>
+      </div>
+      <nav className="flex-1 space-y-1 px-2 py-4">
+        {navigation.map((item) => (
+          <MenuItem key={item.name} item={item} onClick={() => setIsOpen && setIsOpen(false)} />
+        ))}
+      </nav>
+      <div className="p-4 border-t">
+        <Button 
+          variant="outline"
+          className="w-full flex items-center justify-center gap-2"
+          onClick={handleAddDummyData}
+          disabled={isLoading}
+        >
+          <DatabaseIcon className="h-4 w-4" />
+          {isLoading ? 'Loading...' : 'Import Data Dummy'}
+        </Button>
+      </div>
+    </>
+  );
+
   return (
     <>
       {/* Mobile Sidebar */}
@@ -109,11 +142,9 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
             </button>
           </div>
           
-          <nav className="flex-1 space-y-1 px-2 py-4">
-            {navigation.map((item) => (
-              <MenuItem key={item.name} item={item} onClick={() => setIsOpen(false)} />
-            ))}
-          </nav>
+          <div className="flex-1 flex flex-col">
+            <SidebarContent />
+          </div>
         </div>
       </div>
 
@@ -121,17 +152,22 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       <div className="hidden lg:flex lg:flex-shrink-0">
         <div className="flex w-64 flex-col">
           <div className="flex min-h-0 flex-1 flex-col border-r border-gray-200 bg-white">
-            <div className="flex h-16 items-center px-4">
-              <span className="text-xl font-semibold">Koperasi ATK</span>
-            </div>
-            <nav className="flex-1 space-y-1 px-2 py-4">
-              {navigation.map((item) => (
-                <MenuItem key={item.name} item={item} onClick={() => {}} />
-              ))}
-            </nav>
+            <SidebarContent />
           </div>
         </div>
       </div>
+
+      {/* Alert Messages */}
+      {message && (
+        <div className="fixed bottom-4 right-4 w-96 z-50">
+          <Alert 
+            variant={message.type === 'error' ? "destructive" : "default"}
+            className={message.type === 'success' ? "bg-green-50 text-green-700 border-green-200" : ""}
+          >
+            <AlertDescription>{message.text}</AlertDescription>
+          </Alert>
+        </div>
+      )}
     </>
   );
 };

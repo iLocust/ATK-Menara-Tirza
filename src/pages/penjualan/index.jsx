@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Card, 
   CardContent, 
@@ -8,61 +8,202 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useNavigate } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { Search, Loader2 } from 'lucide-react';
+import { stockService } from '@/lib/db/StockService';
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const Penjualan = () => {
   const navigate = useNavigate();
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [products, setProducts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filteredProducts, setFilteredProducts] = useState([]);
 
-  // Sample products data - ganti dengan data dari backend
-  const products = [
-    { id: 1, name: 'Buku Tulis', price: 5000, stock: 100 },
-    { id: 2, name: 'Pulpen', price: 3500, stock: 150 },
-    { id: 3, name: 'Pensil', price: 2000, stock: 200 },
-    { id: 4, name: 'Penghapus', price: 1500, stock: 120 },
-    { id: 5, name: 'Penggaris', price: 4000, stock: 80 },
-  ];
+  // Load products from IndexedDB
+  useEffect(() => {
+    loadProducts();
+  }, []);
 
-  const addToCart = (product) => {
-    const existingItem = cart.find(item => item.id === product.id);
-    if (existingItem) {
-      setCart(cart.map(item =>
-        item.id === product.id
-          ? { ...item, quantity: item.quantity + 1 }
-          : item
-      ));
-    } else {
-      setCart([...cart, { ...product, quantity: 1 }]);
+  // Update filtered products whenever products or search term changes
+  useEffect(() => {
+    filterProducts();
+  }, [products, searchTerm]);
+
+  const loadProducts = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const result = await stockService.getAllStokMasuk();
+      
+      // Transform stokMasuk data to product format
+      const transformedProducts = result.map(item => ({
+        id: item.id,
+        name: item.produk,
+        price: item.hargaJual,
+        stock: item.sisaStok,
+        kategori: item.kategori,
+        buyPrice: item.hargaBeli
+      }));
+      
+      setProducts(transformedProducts);
+    } catch (err) {
+      setError('Gagal memuat data produk: ' + err.message);
+      console.error('Load products error:', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const updateQuantity = (productId, newQuantity) => {
-    if (newQuantity < 1) {
-      setCart(cart.filter(item => item.id !== productId));
-    } else {
-      setCart(cart.map(item =>
-        item.id === productId
-          ? { ...item, quantity: newQuantity }
-          : item
-      ));
+  const filterProducts = () => {
+    const filtered = products.filter(product =>
+      product.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+      product.price && // Only show products with price set
+      product.stock > 0 // Only show products with stock available
+    );
+    setFilteredProducts(filtered);
+  };
+
+  const addToCart = async (product) => {
+    try {
+      // Get latest product data to ensure stock accuracy
+      const currentProducts = await stockService.getAllStokMasuk();
+      const currentProduct = currentProducts.find(item => item.id === product.id);
+      
+      if (!currentProduct) {
+        setError('Produk tidak ditemukan');
+        return;
+      }
+
+      // Check if product has enough stock
+      const existingItem = cart.find(item => item.id === currentProduct.id);
+      const currentCartQuantity = existingItem ? existingItem.quantity : 0;
+      
+      if (currentCartQuantity + 1 > currentProduct.jumlah) {
+        setError('Stok produk tidak mencukupi');
+        return;
+      }
+
+      setError(null);
+      
+      if (existingItem) {
+        setCart(cart.map(item =>
+          item.id === currentProduct.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        ));
+      } else {
+        setCart([...cart, { 
+          id: currentProduct.id, 
+          name: currentProduct.produk, 
+          price: currentProduct.hargaJual,
+          quantity: 1,
+          stock: currentProduct.jumlah
+        }]);
+      }
+    } catch (err) {
+      setError('Gagal menambahkan produk ke keranjang: ' + err.message);
+      console.error('Add to cart error:', err);
     }
   };
 
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const updateQuantity = async (productId, newQuantity) => {
+    try {
+      const currentProducts = await stockService.getAllStokMasuk();
+      const currentProduct = currentProducts.find(item => item.id === productId);
+      
+      if (!currentProduct) {
+        setError('Produk tidak ditemukan');
+        return;
+      }
+
+      // Check if new quantity exceeds available stock
+      if (newQuantity > currentProduct.jumlah) {
+        setError('Stok produk tidak mencukupi');
+        return;
+      }
+
+      setError(null);
+
+      if (newQuantity < 1) {
+        setCart(cart.filter(item => item.id !== productId));
+      } else {
+        setCart(cart.map(item =>
+          item.id === productId
+            ? { ...item, quantity: newQuantity }
+            : item
+        ));
+      }
+    } catch (err) {
+      setError('Gagal mengupdate kuantitas: ' + err.message);
+      console.error('Update quantity error:', err);
+    }
+  };
 
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-  const handleCheckout = () => {
-    navigate('/penjualan/pembayaran', { 
-      state: { cart, subtotal } 
-    });
+  const generateTransactionId = () => {
+    const date = new Date();
+    const year = date.getFullYear().toString().slice(-2);
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    return `TRX${year}${month}${day}${random}`;
   };
+
+  const handleCheckout = async () => {
+    try {
+      // Verify stock availability one last time before checkout
+      const currentProducts = await stockService.getAllStokMasuk();
+      
+      for (const item of cart) {
+        const currentProduct = currentProducts.find(p => p.id === item.id);
+        if (!currentProduct || currentProduct.jumlah < item.quantity) {
+          setError('Stok produk telah berubah. Mohon periksa kembali keranjang Anda.');
+          loadProducts(); // Reload products to show current stock
+          return;
+        }
+      }
+
+      const transactionId = generateTransactionId();
+
+      // Create transaction data
+      const transactionData = {
+        cart,
+        subtotal,
+        transactionId, // Include the transaction ID
+        date: new Date().toISOString()
+      };
+      
+      navigate('/penjualan/pembayaran', { 
+        state: transactionData
+      });
+    } catch (err) {
+      setError('Gagal memproses checkout: ' + err.message);
+      console.error('Checkout error:', err);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-screen">
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span>Memuat data produk...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {error && (
+        <Alert variant="destructive" className="lg:col-span-2">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
       {/* Product List */}
       <Card className="h-[calc(100vh-6rem)] flex flex-col">
         <CardHeader className="border-b">
@@ -77,29 +218,34 @@ const Penjualan = () => {
             />
           </div>
         </CardHeader>
-        <CardContent className="flex-1 overflow-y-auto">
+        <CardContent className="flex-1 pt-5 overflow-y-auto">
           <div className="space-y-2">
             {filteredProducts.map((product) => (
               <Card 
                 key={product.id} 
-                className="hover:bg-gray-50 transition-colors cursor-pointer"
-                onClick={() => addToCart(product)}
+                className={`hover:bg-gray-50 transition-colors ${
+                  product.stock > 0 ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
+                }`}
+                onClick={() => product.stock > 0 && addToCart(product)}
               >
-                <CardContent className="p-4 flex justify-between items-center">
+                <CardContent className="pt-4 flex justify-between items-center">
                   <div className="space-y-1">
                     <h3 className="font-medium text-lg">{product.name}</h3>
                     <div className="flex items-center space-x-4">
-                      <span className="text-sm text-gray-600">
+                      <span className={`text-sm ${
+                        product.stock < 5 ? 'text-red-600' : 'text-gray-600'
+                      }`}>
                         Stok: {product.stock}
                       </span>
                       <span className="text-sm font-medium text-green-600">
-                        Rp {product.price.toLocaleString()}
+                        Rp {product.price?.toLocaleString()}
                       </span>
                     </div>
                   </div>
                   <Button 
                     variant="ghost" 
                     size="sm"
+                    disabled={product.stock < 1}
                     className="hover:bg-green-50 hover:text-green-600"
                   >
                     + Tambah
@@ -107,6 +253,16 @@ const Penjualan = () => {
                 </CardContent>
               </Card>
             ))}
+
+            {filteredProducts.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                {searchTerm ? (
+                  <p>Tidak ada produk yang sesuai dengan pencarian</p>
+                ) : (
+                  <p>Belum ada produk yang tersedia</p>
+                )}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -117,12 +273,17 @@ const Penjualan = () => {
           <CardTitle>Keranjang Belanja</CardTitle>
         </CardHeader>
         <CardContent className="flex-1 overflow-y-auto">
-          <div className="space-y-4">
+          <div className="space-y-4 pt-2">
             {cart.map((item) => (
               <div key={item.id} className="flex items-center justify-between border-b pb-4">
                 <div>
                   <h3 className="font-medium">{item.name}</h3>
-                  <p className="text-sm text-green-600">Rp {item.price.toLocaleString()}</p>
+                  <p className="text-sm text-green-600">
+                    Rp {item.price.toLocaleString()}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Subtotal: Rp {(item.price * item.quantity).toLocaleString()}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button 
@@ -149,15 +310,17 @@ const Penjualan = () => {
             {cart.length > 0 ? (
               <div className="space-y-4 sticky bottom-0 bg-white pt-4">
                 <div className="flex justify-between font-semibold text-lg">
-                  <span>Subtotal:</span>
-                  <span className="text-green-600">Rp {subtotal.toLocaleString()}</span>
+                  <span>Total:</span>
+                  <span className="text-green-600">
+                    Rp {subtotal.toLocaleString()}
+                  </span>
                 </div>
                 <Button 
                   className="w-full bg-green-600 hover:bg-green-700" 
                   size="lg"
                   onClick={handleCheckout}
                 >
-                  Bayar Sekarang
+                  Bayar Sekarang ({cart.reduce((sum, item) => sum + item.quantity, 0)} items)
                 </Button>
               </div>
             ) : (
@@ -172,4 +335,4 @@ const Penjualan = () => {
   );
 };
 
-export default Penjualan;
+export default Penjualan; 
