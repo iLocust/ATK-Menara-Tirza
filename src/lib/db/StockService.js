@@ -150,31 +150,59 @@ class StockService {
     if (!item) {
       throw new Error('Item not found');
     }
- 
+  
     const transaction = dbService.db.transaction(
-      ['stokMasuk', 'products'],
+      ['stokMasuk', 'products', 'cashFlow'],
       'readwrite'
     );
- 
+  
     return new Promise((resolve, reject) => {
       transaction.onerror = () => reject('Transaction failed');
-      transaction.oncomplete = () => resolve('Transaction completed');
- 
+      transaction.oncomplete = async () => {
+        try {
+          await cashFlowService.updateMonthlyBalance(new Date().toISOString().split('T')[0]);
+          resolve('Transaction completed');
+        } catch (error) {
+          reject('Failed to update monthly balance');
+        }
+      };
+  
       try {
         const stokMasukStore = transaction.objectStore('stokMasuk');
         stokMasukStore.delete(id);
- 
+  
         const productsStore = transaction.objectStore('products');
         const getProductRequest = productsStore.index('name').get(item.produk);
- 
+  
         getProductRequest.onsuccess = () => {
           const existingProduct = getProductRequest.result;
           if (existingProduct) {
             productsStore.put({
               ...existingProduct,
-              stock: Math.max(0, existingProduct.stock - item.jumlah)
+              stock: Math.max(0, existingProduct.stock - item.sisaStok)
             });
           }
+  
+          // Calculate refund amount based on remaining stock
+          const refundAmount = item.sisaStok * item.hargaBeli;
+  
+          const cashFlowStore = transaction.objectStore('cashFlow');
+          cashFlowStore.add({
+            type: 'income',
+            paymentMethod: 'cash',
+            amount: refundAmount,
+            description: `[Refund Stok] - ${item.produk} (${item.sisaStok} unit)`,
+            date: new Date().toISOString().split('T')[0],
+            timestamp: new Date().getTime(),
+            refundId: id,
+            details: {
+              productName: item.produk,
+              remainingQuantity: item.sisaStok,
+              originalQuantity: item.jumlah,
+              pricePerUnit: item.hargaBeli,
+              originalPurchaseDate: item.tanggalMasuk
+            }
+          });
         };
       } catch (error) {
         reject(error);

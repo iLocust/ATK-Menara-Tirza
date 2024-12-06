@@ -31,6 +31,53 @@ const StokMasuk = () => {
     margin: ''
   });
 
+  const [formErrors, setFormErrors] = useState({
+    kategori: '',
+    produk: '',
+    jumlah: '',
+    hargaBeli: '',
+    hargaJual: '',
+    margin: ''
+  });
+
+  const validateForm = () => {
+    const errors = {};
+    let isValid = true;
+  
+    if (!formData.kategori) {
+      errors.kategori = 'Kategori harus dipilih';
+      isValid = false;
+    }
+  
+    if (!formData.produk.trim()) {
+      errors.produk = 'Nama produk harus diisi';
+      isValid = false;
+    }
+  
+    if (!formData.jumlah || parseInt(formData.jumlah) <= 0) {
+      errors.jumlah = 'Jumlah harus lebih dari 0';
+      isValid = false;
+    }
+  
+    if (!formData.hargaBeli || parseInt(formData.hargaBeli) <= 0) {
+      errors.hargaBeli = 'Harga beli harus lebih dari 0';
+      isValid = false;
+    }
+  
+    if (!formData.margin || parseFloat(formData.margin) <= 0) {
+      errors.margin = 'Margin harus lebih dari 0';
+      isValid = false;
+    }
+  
+    if (!formData.hargaJual || parseInt(formData.hargaJual) <= 0) {
+      errors.hargaJual = 'Harga jual harus lebih dari 0';
+      isValid = false;
+    }
+  
+    setFormErrors(errors);
+    return isValid;
+  };
+
   useEffect(() => {
     loadStokMasuk();
   }, []);
@@ -91,48 +138,54 @@ const StokMasuk = () => {
   };
 
   const handleSubmit = async () => {
-    try {
-      setError(null);
-
-      const totalCost = parseInt(formData.hargaBeli) * parseInt(formData.jumlah);
-      const hasSufficientCash = await cashFlowService.checkCashAvailability(totalCost);
-
-      if (!hasSufficientCash) {
-        setError('Saldo kas tidak mencukupi untuk pembelian stok ini');
-        return;
-      }
-
-      const newStock = {
-        produk: formData.produk,
-        kategori: formData.kategori,
-        jumlah: parseInt(formData.jumlah),
-        hargaBeli: parseInt(formData.hargaBeli),
-        hargaJual: parseInt(formData.hargaJual) || null,
-        margin: parseFloat(formData.margin) || null,
-        tanggalMasuk: new Date().toISOString().split('T')[0],
-        sisaStok: parseInt(formData.jumlah)
-      };
-
-      await stockService.addStokMasuk(newStock);
-      await loadStokMasuk();
-
-      setFormData({
-        produk: '',
-        kategori: '',
-        jumlah: '',
-        hargaBeli: '',
-        hargaJual: '',
-        margin: ''
-      });
-      setIsDialogOpen(false);
-
-      setSuccessMessage('Stok berhasil ditambahkan');
-      setTimeout(() => setSuccessMessage(null), 3000);
-
-    } catch (err) {
-      setError('Gagal menambah data: ' + err.message);
+  try {
+    setError(null);
+    
+    // Validate form before submission
+    if (!validateForm()) {
+      return;
     }
-  };
+
+    const totalCost = parseInt(formData.hargaBeli) * parseInt(formData.jumlah);
+    const hasSufficientCash = await cashFlowService.checkCashAvailability(totalCost);
+
+    if (!hasSufficientCash) {
+      setError('Saldo kas tidak mencukupi untuk pembelian stok ini');
+      return;
+    }
+
+    const newStock = {
+      produk: formData.produk,
+      kategori: formData.kategori,
+      jumlah: parseInt(formData.jumlah),
+      hargaBeli: parseInt(formData.hargaBeli),
+      hargaJual: parseInt(formData.hargaJual) || null,
+      margin: parseFloat(formData.margin) || null,
+      tanggalMasuk: new Date().toISOString().split('T')[0],
+      sisaStok: parseInt(formData.jumlah)
+    };
+
+    await stockService.addStokMasuk(newStock);
+    await loadStokMasuk();
+
+    setFormData({
+      produk: '',
+      kategori: '',
+      jumlah: '',
+      hargaBeli: '',
+      hargaJual: '',
+      margin: ''
+    });
+    setFormErrors({});
+    setIsDialogOpen(false);
+
+    setSuccessMessage('Stok berhasil ditambahkan');
+    setTimeout(() => setSuccessMessage(null), 3000);
+
+  } catch (err) {
+    setError('Gagal menambah data: ' + err.message);
+  }
+};
 
   const handleRestock = async () => {
     try {
@@ -193,6 +246,8 @@ const StokMasuk = () => {
       await loadStokMasuk();
       setIsDeleteDialogOpen(false);
       setSelectedProduct(null);
+      setSuccessMessage('Stok berhasil dihapus dan dana telah direfund');
+      setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
       setError('Gagal menghapus data: ' + err.message);
     }
@@ -284,82 +339,127 @@ const StokMasuk = () => {
             </Button>
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Tambah Stok Masuk</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4 px-6">
-              <div className="space-y-1.5">
-                <label className="text-sm text-gray-600 font-medium">Kategori</label>
-                <Select
-                  value={formData.kategori}
-                  onValueChange={(value) => handleInputChange('kategori', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih kategori" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ATK">ATK</SelectItem>
-                    <SelectItem value="Seragam">Seragam</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+  <DialogHeader>
+    <DialogTitle>Tambah Stok Masuk</DialogTitle>
+  </DialogHeader>
+  <div className="grid gap-4 py-4 px-6">
+    <div className="space-y-1.5">
+      <label className="text-sm text-gray-600 font-medium">Kategori<span className="text-red-500">*</span></label>
+      <Select
+        value={formData.kategori}
+        onValueChange={(value) => {
+          handleInputChange('kategori', value);
+          setFormErrors(prev => ({ ...prev, kategori: '' }));
+        }}
+      >
+        <SelectTrigger className={formErrors.kategori ? 'border-red-500' : ''}>
+          <SelectValue placeholder="Pilih kategori" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="ATK">ATK</SelectItem>
+          <SelectItem value="Seragam">Seragam</SelectItem>
+        </SelectContent>
+      </Select>
+      {formErrors.kategori && (
+        <p className="text-xs text-red-500 mt-1">{formErrors.kategori}</p>
+      )}
+    </div>
 
-              <div className="space-y-1.5">
-                <label className="text-sm text-gray-600 font-medium">Produk</label>
-                <Input
-                  placeholder="Masukkan nama produk"
-                  value={formData.produk}
-                  onChange={(e) => handleInputChange('produk', e.target.value)}
-                />
-              </div>
+    <div className="space-y-1.5">
+      <label className="text-sm text-gray-600 font-medium">Produk<span className="text-red-500">*</span></label>
+      <Input
+        placeholder="Masukkan nama produk"
+        value={formData.produk}
+        onChange={(e) => {
+          handleInputChange('produk', e.target.value);
+          setFormErrors(prev => ({ ...prev, produk: '' }));
+        }}
+        className={formErrors.produk ? 'border-red-500' : ''}
+      />
+      {formErrors.produk && (
+        <p className="text-xs text-red-500 mt-1">{formErrors.produk}</p>
+      )}
+    </div>
 
-              <div className="space-y-1.5">
-                <label className="text-sm text-gray-600 font-medium">Jumlah</label>
-                <Input
-                  type="number"
-                  placeholder="Masukkan jumlah"
-                  value={formData.jumlah}
-                  onChange={(e) => handleInputChange('jumlah', e.target.value)}
-                />
-              </div>
+    <div className="space-y-1.5">
+      <label className="text-sm text-gray-600 font-medium">Jumlah<span className="text-red-500">*</span></label>
+      <Input
+        type="number"
+        placeholder="Masukkan jumlah"
+        value={formData.jumlah}
+        onChange={(e) => {
+          handleInputChange('jumlah', e.target.value);
+          setFormErrors(prev => ({ ...prev, jumlah: '' }));
+        }}
+        className={formErrors.jumlah ? 'border-red-500' : ''}
+      />
+      {formErrors.jumlah && (
+        <p className="text-xs text-red-500 mt-1">{formErrors.jumlah}</p>
+      )}
+    </div>
 
-              <div className="space-y-1.5">
-                <label className="text-sm text-gray-600 font-medium">Harga Beli</label>
-                <Input
-                  type="number"
-                  placeholder="Masukkan harga beli"
-                  value={formData.hargaBeli}
-                  onChange={(e) => handleInputChange('hargaBeli', e.target.value)}
-                />
-              </div>
+    <div className="space-y-1.5">
+      <label className="text-sm text-gray-600 font-medium">Harga Beli<span className="text-red-500">*</span></label>
+      <Input
+        type="number"
+        placeholder="Masukkan harga beli"
+        value={formData.hargaBeli}
+        onChange={(e) => {
+          handleInputChange('hargaBeli', e.target.value);
+          setFormErrors(prev => ({ ...prev, hargaBeli: '' }));
+        }}
+        className={formErrors.hargaBeli ? 'border-red-500' : ''}
+      />
+      {formErrors.hargaBeli && (
+        <p className="text-xs text-red-500 mt-1">{formErrors.hargaBeli}</p>
+      )}
+    </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-sm text-gray-600 font-medium">Margin (%)</label>
-                  <Input
-                    type="number"
-                    placeholder="Margin"
-                    value={formData.margin}
-                    onChange={(e) => handleInputChange('margin', e.target.value)}
-                  />
-                </div>
+    <div className="grid grid-cols-2 gap-4">
+      
+    <div className="space-y-1.5">
+        <label className="text-sm text-gray-600 font-medium">Harga Jual<span className="text-red-500">*</span></label>
+        <Input
+          type="number"
+          placeholder="Harga jual"
+          value={formData.hargaJual}
+          onChange={(e) => {
+            handleInputChange('hargaJual', e.target.value);
+            setFormErrors(prev => ({ ...prev, hargaJual: '' }));
+          }}
+          className={formErrors.hargaJual ? 'border-red-500' : ''}
+        />
+        {formErrors.hargaJual && (
+          <p className="text-xs text-red-500 mt-1">{formErrors.hargaJual}</p>
+        )}
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-sm text-gray-600 font-medium">Margin (%)<span className="text-red-500">*</span></label>
+        <Input
+          type="number"
+          placeholder="Margin"
+          value={formData.margin}
+          onChange={(e) => {
+            handleInputChange('margin', e.target.value);
+            setFormErrors(prev => ({ ...prev, margin: '' }));
+          }}
+          className={formErrors.margin ? 'border-red-500' : ''}
+        />
+        {formErrors.margin && (
+          <p className="text-xs text-red-500 mt-1">{formErrors.margin}</p>
+        )}
+      </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-sm text-gray-600 font-medium">Harga Jual</label>
-                  <Input
-                    type="number"
-                    placeholder="Harga jual"
-                    value={formData.hargaJual}
-                    onChange={(e) => handleInputChange('hargaJual', e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Batal</Button>
-              <Button onClick={handleSubmit}>Simpan</Button>
-            </DialogFooter>
-          </DialogContent>
+    </div>
+  </div>
+  <DialogFooter>
+    <Button variant="outline" onClick={() => {
+      setIsDialogOpen(false);
+      setFormErrors({});
+    }}>Batal</Button>
+    <Button onClick={handleSubmit}>Simpan</Button>
+  </DialogFooter>
+</DialogContent>
         </Dialog>
 
         <Select onValueChange={handleSort}>

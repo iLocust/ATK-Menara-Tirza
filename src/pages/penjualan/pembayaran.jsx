@@ -5,15 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { transactionService } from '@/lib/db/TransactionService';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
-  ArrowLeft, 
-  Wallet, 
-  QrCode, 
-  Building2, 
-  Package2, 
-  CheckCircle2,
-  AlertCircle,
-  Receipt
+  ArrowLeft, Wallet, Building2, Package2, CheckCircle2,
+  AlertCircle, Receipt
 } from 'lucide-react';
 
 const Pembayaran = () => {
@@ -21,14 +16,13 @@ const Pembayaran = () => {
   const navigate = useNavigate();
   const { cart, subtotal, transactionId } = location.state;
   
-  // State management
   const [paymentMethod, setPaymentMethod] = useState('');
   const [cashAmount, setCashAmount] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState(null);
   const [dateInput, setDateInput] = useState('');
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
 
-  // Payment method options
   const paymentMethods = [
     {
       id: 'cash',
@@ -44,7 +38,6 @@ const Pembayaran = () => {
     }
   ];
 
-  // Common cash amounts
   const commonAmounts = [
     { value: 10000, label: '10.000' },
     { value: 20000, label: '20.000' },
@@ -52,10 +45,8 @@ const Pembayaran = () => {
     { value: 100000, label: '100.000' }
   ];
   
-  // Calculate change
   const change = cashAmount ? parseInt(cashAmount.replace(/\D/g, '')) - subtotal : 0;
 
-  // Format and validate date input
   const formatDateInput = (input) => {
     const numbers = input.replace(/\D/g, '');
     if (numbers.length <= 2) return numbers;
@@ -63,7 +54,6 @@ const Pembayaran = () => {
     return `${numbers.slice(0,2)}/${numbers.slice(2,4)}/${numbers.slice(4,8)}`;
   };
 
-  // Convert DD/MM/YYYY to YYYY-MM-DD
   const convertToISODate = (dateStr) => {
     const [day, month, year] = dateStr.split('/');
     return `${year}-${month}-${day}`;
@@ -71,10 +61,8 @@ const Pembayaran = () => {
 
   const validateDate = (dateStr) => {
     if (!dateStr.match(/^\d{2}\/\d{2}\/\d{4}$/)) return false;
-    
     const [day, month, year] = dateStr.split('/').map(Number);
     const date = new Date(year, month - 1, day);
-    
     return date instanceof Date && !isNaN(date) &&
            date.getDate() === day &&
            date.getMonth() === month - 1 &&
@@ -86,7 +74,6 @@ const Pembayaran = () => {
     setDateInput(formatted);
   };
 
-  // Handle payment submission
   const handlePayment = async () => {
     try {
       if (!validateDate(dateInput)) {
@@ -98,23 +85,22 @@ const Pembayaran = () => {
       setError(null);
 
       const transactionData = {
-        transactionId: transactionId,
+        transactionId,
         date: convertToISODate(dateInput),
-        subtotal: subtotal,
-        paymentMethod: paymentMethod,
+        subtotal,
+        paymentMethod,
         cashAmount: paymentMethod === 'cash' ? parseInt(cashAmount.replace(/\D/g, '')) : subtotal,
         change: paymentMethod === 'cash' ? change : 0,
         status: 'completed'
       };
 
       await transactionService.processTransaction(transactionData, cart);
+      setShowSuccessDialog(true);
 
-      navigate('/penjualan', {
-        state: {
-          success: true,
-          message: 'Pembayaran berhasil'
-        }
-      });
+      setTimeout(() => {
+        navigate('/penjualan');
+      }, 3000);
+
     } catch (err) {
       setError('Gagal memproses pembayaran: ' + err.message);
       console.error('Payment error:', err);
@@ -123,7 +109,6 @@ const Pembayaran = () => {
     }
   };
 
-  // Set default date on mount
   useEffect(() => {
     const today = new Date();
     const day = String(today.getDate()).padStart(2, '0');
@@ -149,8 +134,59 @@ const Pembayaran = () => {
         </Alert>
       )}
 
+      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-600">
+              <CheckCircle2 className="h-6 w-6" />
+              Pembayaran Berhasil!
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">ID Transaksi:</span>
+                <span className="font-medium">{transactionId}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Total:</span>
+                <span className="font-medium">Rp {subtotal.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Metode:</span>
+                <span className="font-medium">
+                  {paymentMethod === 'cash' ? 'Tunai' : 'Transfer Bank'}
+                </span>
+              </div>
+              {paymentMethod === 'cash' && (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Dibayar:</span>
+                    <span className="font-medium">
+                      Rp {parseInt(cashAmount.replace(/\D/g, '')).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Kembalian:</span>
+                    <span className="font-medium text-green-600">
+                      Rp {change.toLocaleString()}
+                    </span>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Tanggal:</span>
+                <span className="font-medium">{dateInput}</span>
+              </div>
+            </div>
+            <p className="text-center text-sm text-gray-500">
+              Mengalihkan ke halaman penjualan dalam beberapa detik...
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Order Summary Card */}
         <Card className="h-fit shadow-sm">
           <CardHeader className="border-b bg-white">
             <CardTitle className="flex items-center gap-2 text-gray-800">
@@ -182,7 +218,7 @@ const Pembayaran = () => {
                 ))}
               </div>
               
-              <div className="border-t pt-4 mt-4">
+              <div className="border-t pt-4">
                 <div className="flex justify-between text-sm text-gray-600 mb-2">
                   <span>Jumlah Item:</span>
                   <span>{cart.reduce((sum, item) => sum + item.quantity, 0)} barang</span>
@@ -196,7 +232,6 @@ const Pembayaran = () => {
           </CardContent>
         </Card>
 
-        {/* Payment Method Card */}
         <Card className="h-fit shadow-sm">
           <CardHeader className="border-b bg-white">
             <CardTitle className="flex items-center gap-2 text-gray-800">
@@ -205,28 +240,26 @@ const Pembayaran = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
-            {/* Date Input Section */}
-            <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">
-                  Tanggal Transaksi (DD/MM/YYYY)
-                </label>
-                <Input
-                  type="text"
-                  value={dateInput}
-                  onChange={handleDateChange}
-                  placeholder="DD/MM/YYYY"
-                  maxLength="10"
-                  className="bg-white border-gray-200"
-                />
-                <p className="text-xs text-gray-500">
-                  Contoh: 01/12/2024
-                </p>
-              </div>
-            </div>
-
-            {/* Payment Methods */}
             <div className="space-y-4">
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    Tanggal Transaksi (DD/MM/YYYY)
+                  </label>
+                  <Input
+                    type="text"
+                    value={dateInput}
+                    onChange={handleDateChange}
+                    placeholder="DD/MM/YYYY"
+                    maxLength="10"
+                    className="bg-white border-gray-200"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Contoh: 01/12/2024
+                  </p>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 gap-3">
                 {paymentMethods.map((method) => {
                   const Icon = method.icon;
@@ -256,150 +289,126 @@ const Pembayaran = () => {
                 })}
               </div>
 
-              {/* Payment Details Based on Method */}
-              {paymentMethod && (
-                <div className="mt-6 pt-6 border-t">
-                  {paymentMethod === 'cash' && (
-                    <div className="space-y-4">
-                      <Button 
-                        variant="outline" 
-                        className="w-full bg-white hover:bg-gray-50 hover:text-primary text-gray-700 border-gray-200"
-                        onClick={() => setCashAmount(subtotal.toString())}
-                      >
-                        Uang Pas - Rp {subtotal.toLocaleString()}
-                      </Button>
-                      
-                      <div className="grid grid-cols-2 gap-2">
-                        {commonAmounts.map(({ value, label }) => (
-                          <Button
-                            key={value}
-                            variant="outline"
-                            onClick={() => setCashAmount(value.toString())}
-                            className={`font-medium ${
-                              parseInt(cashAmount?.replace(/\D/g, '') || '0') === value
-                                ? 'bg-primary/10 border-primary text-primary' 
-                                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:text-primary'
-                            }`}
-                          >
-                            Rp {label}
-                          </Button>
-                        ))}
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">
-                          Jumlah Uang Custom
-                        </label>
-                        <Input
-                          type="text"
-                          placeholder="Masukkan jumlah uang"
-                          value={cashAmount}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            const numberOnly = value.replace(/\D/g, '');
-                            const formatted = numberOnly.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-                            setCashAmount(formatted);
-                          }}
-                          className="text-lg bg-white border-gray-200 text-gray-800 placeholder-gray-400"
-                        />
-                      </div>
-
-                      {cashAmount && (
-                        <div className="rounded-lg border p-4 space-y-3 bg-gray-50/50">
-                          <div className="flex justify-between text-sm text-gray-700">
-                            <span>Total Pembayaran:</span>
-                            <span>Rp {subtotal.toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between text-sm text-gray-700">
-                            <span>Jumlah Dibayar:</span>
-                            <span>Rp {parseInt(cashAmount.replace(/\D/g, '')).toLocaleString()}</span>
-                          </div>
-                          <div className="border-t pt-2">
-                            <div className="flex justify-between font-medium">
-                              <span className="text-gray-800">Kembalian:</span>
-                              <span className={change < 0 ? 'text-red-500' : 'text-green-500'}>
-                                Rp {change.toLocaleString()}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {change < 0 && (
-                        <Alert variant="destructive">
-                          <AlertCircle className="h-4 w-4" />
-                          <AlertDescription>
-                            Jumlah pembayaran kurang dari total belanja
-                          </AlertDescription>
-                        </Alert>
-                      )}
-                    </div>
-                  )}
-
-                  {paymentMethod === 'qris' && (
-                    <div className="space-y-4">
-                      <div className="border rounded-lg p-6 text-center space-y-4 bg-white">
-                        <div className="bg-gray-100 p-8 rounded-lg inline-block mx-auto">
-                          <QrCode className="w-32 h-32 mx-auto text-primary" />
-                        </div>
-                        <div>
-                          <p className="font-semibold mb-1 text-gray-800">Total Pembayaran</p>
-                          <p className="text-2xl font-bold text-primary">
-                            Rp {subtotal.toLocaleString()}
-                          </p>
-                        </div>
-                        <p className="text-sm text-gray-600">
-                          Scan QR code di atas menggunakan aplikasi e-wallet atau mobile banking Anda
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {paymentMethod === 'transfer' && (
-                    <div className="space-y-4">
-<div className="border rounded-lg p-6 space-y-4 bg-white">
-                        <div className="text-center">
-                          <div className="bg-gray-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                            <Building2 className="w-8 h-8 text-primary" />
-                          </div>
-                          <p className="font-semibold mb-1 text-gray-800">Transfer ke rekening:</p>
-                          <p className="text-xl font-mono bg-gray-50 p-2 rounded text-gray-800">1234-5678-9012</p>
-                          <p className="text-sm text-gray-600 mt-2">a.n. Koperasi ATK</p>
-                        </div>
-                        <div className="border-t pt-4 text-center">
-                          <p className="font-semibold mb-1 text-gray-800">Total Pembayaran</p>
-                          <p className="text-2xl font-bold text-primary">
-                            Rp {subtotal.toLocaleString()}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
+              {paymentMethod === 'cash' && (
+                <div className="mt-6 space-y-4">
                   <Button 
-                    className="w-full mt-6"
-                    size="lg"
-                    disabled={
-                      !paymentMethod || 
-                      (paymentMethod === 'cash' && (parseInt(cashAmount?.replace(/\D/g, '') || '0') < subtotal)) ||
-                      isProcessing
-                    }
-                    onClick={handlePayment}
+                    variant="outline" 
+                    className="w-full bg-white hover:bg-gray-50 hover:text-primary text-gray-700 border-gray-200"
+                    onClick={() => setCashAmount(subtotal.toString())}
                   >
-                    {isProcessing ? (
-                      <>
-                        <span className="animate-spin mr-2">◌</span>
-                        Memproses Pembayaran...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="mr-2 h-4 w-4" />
-                        Selesaikan Pembayaran
-                      </>
-                    )}
+                    Uang Pas - Rp {subtotal.toLocaleString()}
                   </Button>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    {commonAmounts.map(({ value, label }) => (
+                      <Button
+                        key={value}
+                        variant="outline"
+                        onClick={() => setCashAmount(value.toString())}
+                        className={`font-medium ${
+                          parseInt(cashAmount?.replace(/\D/g, '') || '0') === value
+                            ? 'bg-primary/10 border-primary text-primary' 
+                            : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:text-primary'
+                        }`}
+                      >
+                        Rp {label}
+                      </Button>
+                    ))}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      Jumlah Uang Custom
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder="Masukkan jumlah uang"
+                      value={cashAmount}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        const numberOnly = value.replace(/\D/g, '');
+                        const formatted = numberOnly.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+                        setCashAmount(formatted);
+                      }}
+                      className="text-lg bg-white border-gray-200 text-gray-800 placeholder-gray-400"
+                    />
+                  </div>
+
+                  {cashAmount && (
+                    <div className="rounded-lg border p-4 space-y-3 bg-gray-50/50">
+                      <div className="flex justify-between text-sm text-gray-700">
+                        <span>Total Pembayaran:</span>
+                        <span>Rp {subtotal.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-sm text-gray-700">
+                        <span>Jumlah Dibayar:</span>
+                        <span>Rp {parseInt(cashAmount.replace(/\D/g, '')).toLocaleString()}</span>
+                      </div>
+                      <div className="border-t pt-2">
+                        <div className="flex justify-between font-medium">
+                          <span className="text-gray-800">Kembalian:</span>
+                          <span className={change < 0 ? 'text-red-500' : 'text-green-500'}>
+                            Rp {change.toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {change < 0 && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Jumlah pembayaran kurang dari total belanja
+                      </AlertDescription>
+                    </Alert>
+                  )}
                 </div>
               )}
+
+              {paymentMethod === 'transfer' && (
+                <div className="mt-6 space-y-4">
+                  <div className="border rounded-lg p-6 space-y-4 bg-white">
+                    <div className="text-center">
+                      <div className="bg-gray-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                        <Building2 className="w-8 h-8 text-primary" />
+                      </div>
+                      <p className="font-semibold mb-1 text-gray-800">Transfer ke rekening:</p>
+                      <p className="text-xl font-mono bg-gray-50 p-2 rounded text-gray-800">1234-5678-9012</p>
+                      <p className="text-sm text-gray-600 mt-2">a.n. Koperasi ATK</p>
+                    </div>
+                    <div className="border-t pt-4 text-center">
+                      <p className="font-semibold mb-1 text-gray-800">Total Pembayaran</p>
+                      <p className="text-2xl font-bold text-primary">
+                        Rp {subtotal.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <Button 
+                className="w-full mt-6"
+                size="lg"
+                disabled={
+                  !paymentMethod || 
+                  (paymentMethod === 'cash' && (parseInt(cashAmount?.replace(/\D/g, '') || '0') < subtotal)) ||
+                  isProcessing
+                }
+                onClick={handlePayment}
+              >
+                {isProcessing ? (
+                  <>
+                    <span className="animate-spin mr-2">◌</span>
+                    Memproses Pembayaran...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Selesaikan Pembayaran
+                  </>
+                )}
+              </Button>
             </div>
           </CardContent>
         </Card>

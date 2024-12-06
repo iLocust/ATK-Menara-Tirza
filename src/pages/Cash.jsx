@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/tabs";
 import { cashFlowService } from '@/lib/db/CashFlowService';
 import { exportCashFlow } from './excelUtils';
+import { dbService } from '../lib/db/db-service';
 
 const UnifiedCashManagement = () => {
   const [balance, setBalance] = useState({ cash: 0, transfer: 0 });
@@ -37,6 +38,8 @@ const UnifiedCashManagement = () => {
     totalIncome: { cash: 0, transfer: 0 },
     totalExpense: { cash: 0, transfer: 0 }
   });
+
+  
 
   const [formData, setFormData] = useState({
     type: 'income',
@@ -73,7 +76,7 @@ const UnifiedCashManagement = () => {
     { value: 11, label: 'November' },
     { value: 12, label: 'Desember' }
   ];
-  const [lastMonthBalance, setLastMonthBalance] = useState({ cash: 0, transfer: 0 });
+  const [lastMonthBalance, setLastMonthBalance] = useState({ cashBalance: 0, transferBalance: 0 });
 
 
 
@@ -86,31 +89,82 @@ const UnifiedCashManagement = () => {
       setIsLoading(true);
       setError(null);
       
-      // Update balances for the selected month before loading data
+      // Calculate previous month and year
+      const previousMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
+      const previousYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
+      
+      // Format the monthKey for previous month
+      const previousMonthKey = `${previousYear}-${previousMonth.toString().padStart(2, '0')}`;
+      const currentMonthKey = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}`;
+      
+      // Get previous month's balance from monthlyBalance store
+      const previousMonthBalances = await dbService.getAllFromIndex('monthlyBalance', 'monthKey', previousMonthKey);
+      const previousMonthBalance = previousMonthBalances.length > 0 
+        ? previousMonthBalances[0] 
+        : { cashBalance: 0, transferBalance: 0 };
+      
+      setLastMonthBalance(previousMonthBalance);
+      
+      // Calculate date range for current month
       const startDate = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`;
       const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
       const endDate = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-${lastDay}`;
       
-      // Trigger balance update for the month
+      // Ensure balances are updated for the selected date range
       await cashFlowService.updateBalancesForDateRange(startDate, endDate);
       
-      // Get current balances
-      const cashBalance = await cashFlowService.getCashBalance();
-      const transferBalance = await cashFlowService.getTransferBalance();
-      setBalance({ cash: cashBalance, transfer: transferBalance });
-  
-      // Get last month balance
-      const lastMonth = await cashFlowService.getLastMonthBalance(
-        selectedYear, 
-        selectedMonth
-      );
-      setLastMonthBalance(lastMonth);
-  
-      // Get monthly summary
+      // Get current month's balance from monthlyBalance store
+      const currentMonthBalances = await dbService.getAllFromIndex('monthlyBalance', 'monthKey', currentMonthKey);
+      
+      // If we have current month balance, use it; otherwise calculate from cash flow service
+      let currentBalance;
+      if (currentMonthBalances.length > 0) {
+        currentBalance = {
+          cash: currentMonthBalances[0].cashBalance,
+          transfer: currentMonthBalances[0].transferBalance
+        };
+      } else {
+        const cashBalance = await cashFlowService.getCashBalance();
+        const transferBalance = await cashFlowService.getTransferBalance();
+        currentBalance = { cash: cashBalance, transfer: transferBalance };
+      }
+      
+      setBalance(currentBalance);
+      
+      // Get monthly summary for the selected period
       const summary = await cashFlowService.getCashFlowSummary(startDate, endDate);
       
+      // Calculate running balances for daily records
+      const cashDailyBalance = summary.dailyBalance.cash.map(day => ({
+        ...day,
+        runningBalance: previousMonthBalance.cashBalance + day.dailyBalance
+      }));
+      
+      const transferDailyBalance = summary.dailyBalance.transfer.map(day => ({
+        ...day,
+        runningBalance: previousMonthBalance.transferBalance + day.dailyBalance
+      }));
+      
+      // Update running balances cumulatively
+      let cashRunningBalance = previousMonthBalance.cashBalance;
+      let transferRunningBalance = previousMonthBalance.transferBalance;
+      
+      cashDailyBalance.forEach(day => {
+        cashRunningBalance += (day.income - day.expense);
+        day.runningBalance = cashRunningBalance;
+      });
+      
+      transferDailyBalance.forEach(day => {
+        transferRunningBalance += (day.income - day.expense);
+        day.runningBalance = transferRunningBalance;
+      });
+      
+      // Set monthly data state
       setMonthlyData({
-        dailyBalance: summary.dailyBalance,
+        dailyBalance: {
+          cash: cashDailyBalance,
+          transfer: transferDailyBalance
+        },
         totalIncome: {
           cash: summary.cash.income,
           transfer: summary.transfer.income
@@ -121,7 +175,8 @@ const UnifiedCashManagement = () => {
         },
         transactions: summary.transactions
       });
-  
+      
+      // Set transaction states
       setTransactions(summary.transactions);
       setFilteredTransactions(summary.transactions);
   
@@ -375,63 +430,91 @@ const UnifiedCashManagement = () => {
         </TabsList>
 
         <TabsContent value="daily">
-          <Card>
-            <CardHeader className="border-b">
-              <div className="flex justify-between items-center">
-                <CardTitle>Rincian Saldo Harian</CardTitle>
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
-                  <TabsList>
-                    <TabsTrigger value="cash">Tunai</TabsTrigger>
-                    <TabsTrigger value="transfer">Transfer</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b bg-gray-50">
-                    <th className="py-3 px-4 text-left font-medium">Tanggal</th>
-                    <th className="py-3 px-4 text-right font-medium">Masuk</th>
-                    <th className="py-3 px-4 text-right font-medium">Keluar</th>
-                    <th className="py-3 px-4 text-right font-medium">Saldo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* Add Saldo Bulan Lalu row */}
-                  <tr className="border-b bg-gray-50">
-                    <td className="py-3 px-4 font-medium">Saldo Bulan Lalu</td>
-                    <td className="py-3 px-4 text-right text-green-600">-</td>
-                    <td className="py-3 px-4 text-right text-red-600">-</td>
-                    <td className="py-3 px-4 text-right font-bold">
-                      Rp {lastMonthBalance.cashBalance.toLocaleString()}
-                    </td>
-                  </tr>
-                  {monthlyData.dailyBalance[activeTab].map((item) => (
-                    <tr key={item.date} className="border-b hover:bg-gray-50">
-                      <td className="py-3 px-4">
-                        {new Date(item.date).toLocaleDateString('id-ID', {
-                          weekday: 'long',
-                          month: 'long',
-                          day: 'numeric'
-                        })}
-                      </td>
-                      <td className="py-3 px-4 text-right text-green-600">
-                        {item.income > 0 ? `Rp ${item.income.toLocaleString()}` : '-'}
-                      </td>
-                      <td className="py-3 px-4 text-right text-red-600">
-                        {item.expense > 0 ? `Rp ${item.expense.toLocaleString()}` : '-'}
-                      </td>
-                      <td className="py-3 px-4 text-right font-bold">
-                        Rp {item.runningBalance.toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-        </TabsContent>
+  <Card>
+    <CardHeader className="border-b">
+      <div className="flex justify-between items-center">
+        <CardTitle>Rincian Saldo Harian</CardTitle>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
+          <TabsList>
+            <TabsTrigger value="cash">Tunai</TabsTrigger>
+            <TabsTrigger value="transfer">Transfer</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+    </CardHeader>
+    <CardContent className="p-0">
+      <table className="w-full">
+        <thead>
+          <tr className="border-b bg-gray-50">
+            <th className="py-3 px-4 text-left font-medium">Tanggal</th>
+            <th className="py-3 px-4 text-right font-medium">Masuk</th>
+            <th className="py-3 px-4 text-right font-medium">Keluar</th>
+            <th className="py-3 px-4 text-right font-medium">Saldo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {/* Previous month balance row */}
+          <tr className="border-b bg-gray-50">
+            <td className="py-3 px-4 font-medium">
+              Saldo {months.find(m => m.value === (selectedMonth === 1 ? 12 : selectedMonth - 1))?.label}
+            </td>
+            <td className="py-3 px-4 text-right text-green-600">-</td>
+            <td className="py-3 px-4 text-right text-red-600">-</td>
+            <td className="py-3 px-4 text-right font-bold">
+              Rp {activeTab === 'cash' 
+                ? lastMonthBalance.cashBalance.toLocaleString() 
+                : lastMonthBalance.transferBalance.toLocaleString()}
+            </td>
+          </tr>
+
+          {/* Daily transactions rows */}
+          {monthlyData.dailyBalance[activeTab].map((item) => (
+            <tr key={item.date} className="border-b hover:bg-gray-50">
+              <td className="py-3 px-4">
+                {new Date(item.date).toLocaleDateString('id-ID', {
+                  weekday: 'long',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+              </td>
+              <td className="py-3 px-4 text-right text-green-600">
+                {item.income > 0 ? `Rp ${item.income.toLocaleString()}` : '-'}
+              </td>
+              <td className="py-3 px-4 text-right text-red-600">
+                {item.expense > 0 ? `Rp ${item.expense.toLocaleString()}` : '-'}
+              </td>
+              <td className="py-3 px-4 text-right font-bold">
+                Rp {item.runningBalance.toLocaleString()}
+              </td>
+            </tr>
+          ))}
+
+          {/* Total income minus expenses row at the bottom */}
+          <tr className="border-t-2 border-b bg-gray-100 font-medium">
+            <td className="py-4 px-4 font-medium">
+              Total Pendapatan - Pengeluaran
+            </td>
+            <td className="py-4 px-4 text-right text-green-600">
+              Rp {activeTab === 'cash' 
+                ? monthlyData.totalIncome.cash.toLocaleString()
+                : monthlyData.totalIncome.transfer.toLocaleString()}
+            </td>
+            <td className="py-4 px-4 text-right text-red-600">
+              Rp {activeTab === 'cash'
+                ? monthlyData.totalExpense.cash.toLocaleString()
+                : monthlyData.totalExpense.transfer.toLocaleString()}
+            </td>
+            <td className="py-4 px-4 text-right font-bold">
+              Rp {activeTab === 'cash'
+                ? (monthlyData.totalIncome.cash - monthlyData.totalExpense.cash).toLocaleString()
+                : (monthlyData.totalIncome.transfer - monthlyData.totalExpense.transfer).toLocaleString()}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </CardContent>
+  </Card>
+</TabsContent>
 
         <TabsContent value="history">
           <Card>

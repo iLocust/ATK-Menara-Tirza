@@ -49,7 +49,8 @@ class CashFlowService {
     
     // Get date range for the month
     const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
-    const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+    const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+
   
     // Get previous month's balance
     const previousMonth = month === 1 ? 12 : month - 1;
@@ -393,7 +394,27 @@ class CashFlowService {
     }
   }
 
-  async checkCashAvailability(amount) {
+  async validateRefund(item) {
+    const startDate = item.tanggalMasuk;
+    const endDate = new Date().toISOString().split('T')[0];
+    const flows = await this.getCashFlowByDateRange(startDate, endDate);
+    
+    // Find original purchase expense
+    const originalExpense = flows.find(f => 
+      f.type === 'expense' && 
+      f.purchaseId === item.id
+    );
+  
+    if (!originalExpense) {
+      throw new Error('Original purchase transaction not found');
+    }
+  
+    return true;
+  }
+  
+  // Add to existing checkCashAvailability method
+  async checkCashAvailability(amount, isRefund = false) {
+    if (isRefund) return true; // Skip balance check for refunds
     const currentBalance = await this.getCashBalance();
     return currentBalance >= amount;
   }
