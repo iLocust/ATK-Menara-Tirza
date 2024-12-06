@@ -22,7 +22,7 @@ const navigation = [
   { name: 'Stok Masuk', href: '/inventori/stok-masuk', icon: ArrowDownOnSquareIcon },
   { name: 'Kas Koperasi', href: '/kas', icon: WalletIcon },
   // { name: 'Ringkasan Bulanan', href: '/summary', icon: ChartBarIcon },
-  // { name: 'Laporan Penjualan', href: '/report', icon: DocumentTextIcon }
+  { name: 'Laporan Penjualan', href: '/report', icon: DocumentTextIcon }
 ];
 
 const MenuItem = ({ item, onClick }) => {

@@ -11,11 +11,14 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Loader2 } from 'lucide-react';
 import { stockService } from '@/lib/db/StockService';
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 
 const Penjualan = () => {
   const navigate = useNavigate();
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -29,7 +32,7 @@ const Penjualan = () => {
   // Update filtered products whenever products or search term changes
   useEffect(() => {
     filterProducts();
-  }, [products, searchTerm]);
+  }, [products, searchTerm, selectedCategory]);
 
   const loadProducts = async () => {
     try {
@@ -37,7 +40,6 @@ const Penjualan = () => {
       setError(null);
       const result = await stockService.getAllStokMasuk();
       
-      // Transform stokMasuk data to product format
       const transformedProducts = result.map(item => ({
         id: item.id,
         name: item.produk,
@@ -59,8 +61,8 @@ const Penjualan = () => {
   const filterProducts = () => {
     const filtered = products.filter(product =>
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-      product.price && // Only show products with price set
-      product.stock > 0 // Only show products with stock available
+      product.price &&
+      (selectedCategory === 'all' || product.kategori === selectedCategory)
     );
     setFilteredProducts(filtered);
   };
@@ -197,42 +199,46 @@ const Penjualan = () => {
   }
 
   return (
-    <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {error && (
-        <Alert variant="destructive" className="lg:col-span-2">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Product List */}
-      <Card className="h-[calc(100vh-6rem)] flex flex-col">
+    <div className="flex h-screen">
+    <div className="flex-1 p-2 border-r">
+      <Card className="h-full flex flex-col">
         <CardHeader className="border-b">
           <CardTitle>Daftar Produk</CardTitle>
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
-            <Input
-              placeholder="Cari produk..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8"
-            />
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+              <Input
+                placeholder="Cari produk..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger>
+                <SelectValue placeholder="Pilih Kategori" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Kategori</SelectItem>
+                <SelectItem value="ATK">ATK</SelectItem>
+                <SelectItem value="Seragam">Seragam</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
-        <CardContent className="flex-1 pt-5 overflow-y-auto">
-          <div className="space-y-2">
+        <CardContent className="flex-1 overflow-y-auto">
+          <div className="space-y-2 pt-4">
             {filteredProducts.map((product) => (
               <Card 
                 key={product.id} 
-                className={`hover:bg-gray-50 transition-colors ${
-                  product.stock > 0 ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
-                }`}
-                onClick={() => product.stock > 0 && addToCart(product)}
+                className="hover:bg-gray-50 transition-colors"
               >
                 <CardContent className="pt-4 flex justify-between items-center">
                   <div className="space-y-1">
                     <h3 className="font-medium text-lg">{product.name}</h3>
                     <div className="flex items-center space-x-4">
                       <span className={`text-sm ${
+                        product.stock === 0 ? 'text-red-600 font-semibold' :
                         product.stock < 5 ? 'text-red-600' : 'text-gray-600'
                       }`}>
                         Stok: {product.stock}
@@ -247,6 +253,7 @@ const Penjualan = () => {
                     size="sm"
                     disabled={product.stock < 1}
                     className="hover:bg-green-50 hover:text-green-600"
+                    onClick={() => product.stock > 0 && addToCart(product)}
                   >
                     + Tambah
                   </Button>
@@ -266,9 +273,10 @@ const Penjualan = () => {
           </div>
         </CardContent>
       </Card>
+    </div>
 
-      {/* Shopping Cart */}
-      <Card className="h-[calc(100vh-6rem)] flex flex-col">
+    <div className="w-1/2 p-2">
+      <Card className="h-full flex flex-col">
         <CardHeader className="border-b">
           <CardTitle>Keranjang Belanja</CardTitle>
         </CardHeader>
@@ -332,7 +340,14 @@ const Penjualan = () => {
         </CardContent>
       </Card>
     </div>
-  );
+
+    {error && (
+      <Alert variant="destructive" className="absolute top-4 right-4 left-4">
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    )}
+  </div>
+);
 };
 
-export default Penjualan; 
+export default Penjualan;

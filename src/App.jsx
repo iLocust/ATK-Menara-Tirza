@@ -7,8 +7,8 @@ import Penjualan from './pages/Penjualan';
 import Pembayaran from './pages/penjualan/pembayaran';
 import RiwayatTransaksi from './pages/penjualan/riwayat-transaksi';
 import CashBalance from './pages/Cash';
-import MonthlyCashSummary from './pages/MonthlyCashSummary';
 import SalesReport from './pages/SalesReport';
+
 
 
 function App() {
@@ -23,7 +23,7 @@ function App() {
           <Route path="/riwayat-transaksi" element={<RiwayatTransaksi />} />
           <Route path="/penjualan/pembayaran" element={<Pembayaran />} />
           <Route path="/kas" element={<CashBalance />} />
-          <Route path="/summary" element={<MonthlyCashSummary />} />
+          {/* <Route path="/summary" element={<MonthlyCashSummary />} /> */}
           <Route path="/report" element={<SalesReport />} />
 
         </Routes>

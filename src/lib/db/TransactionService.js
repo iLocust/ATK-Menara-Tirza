@@ -1,4 +1,6 @@
+// TransactionService.js
 import { dbService } from './db-service';
+import { cashFlowService } from './CashFlowService';
 
 class TransactionService {
   async getAllTransactions() {
@@ -30,7 +32,14 @@ class TransactionService {
 
     return new Promise((resolve, reject) => {
       transaction.onerror = () => reject('Transaction failed');
-      transaction.oncomplete = () => resolve('Transaction completed');
+      transaction.oncomplete = async () => {
+        try {
+          await cashFlowService.updateMonthlyBalance(transactionData.date);
+          resolve('Transaction completed');
+        } catch (error) {
+          reject('Failed to update monthly balance');
+        }
+      };
 
       try {
         const transaksiStore = transaction.objectStore('transaksi');
@@ -50,80 +59,82 @@ class TransactionService {
         });
 
         cart.forEach(async (item) => {
-          detailStore.add({
-            transaksiId: transactionData.transactionId,
-            productId: item.id,
-            name: item.name,
-            quantity: item.quantity,
-            price: item.price
-          });
-
-          const getStockRequest = stokMasukStore.index('produk').getAll(item.name);
-          
-          getStockRequest.onsuccess = (event) => {
-            let remainingQty = item.quantity;
-            const batches = event.target.result
-              .filter(batch => batch.sisaStok > 0)
-              .sort((a, b) => new Date(a.tanggalMasuk) - new Date(b.tanggalMasuk));
-
-            batches.forEach(batch => {
-              if (remainingQty > 0) {
-                const qtyToReduce = Math.min(remainingQty, batch.sisaStok);
-                batch.sisaStok -= qtyToReduce;
-                remainingQty -= qtyToReduce;
-                stokMasukStore.put(batch);
-              }
+          const getProductRequest = productsStore.index('name').get(item.name);
+          getProductRequest.onsuccess = (event) => {
+            const product = event.target.result;
+            
+            detailStore.add({
+              transaksiId: transactionData.transactionId,
+              productId: item.id,
+              name: item.name,
+              quantity: item.quantity,
+              price: item.price,
+              kategori: product ? product.kategori : item.kategori
             });
 
-            const getProductRequest = productsStore.index('name').get(item.name);
-            getProductRequest.onsuccess = (event) => {
-              const product = event.target.result;
-              if (product) {
-                product.stock -= item.quantity;
-                productsStore.put(product);
-              }
+            const getStockRequest = stokMasukStore.index('produk').getAll(item.name);
+            
+            getStockRequest.onsuccess = (event) => {
+              let remainingQty = item.quantity;
+              const batches = event.target.result
+                .filter(batch => batch.sisaStok > 0)
+                .sort((a, b) => new Date(a.tanggalMasuk) - new Date(b.tanggalMasuk));
+
+                batches.forEach(batch => {
+                  if (remainingQty > 0) {
+                    const qtyToReduce = Math.min(remainingQty, batch.sisaStok);
+                    batch.sisaStok -= qtyToReduce;
+                    remainingQty -= qtyToReduce;
+                    stokMasukStore.put(batch);
+                  }
+                });
+  
+                if (product) {
+                  product.stock -= item.quantity;
+                  productsStore.put(product);
+                }
+              };
             };
-          };
-        });
-
-        if (transactionData.paymentMethod === 'cash') {
-          cashFlowStore.add({
-            type: 'income',
-            amount: transactionData.cashAmount,
-            description: `Penerimaan Kas - ${transactionData.transactionId}`,
-            date: transactionData.date,
-            transactionId: transactionData.transactionId,
-            paymentMethod: transactionData.paymentMethod,
-            timestamp: new Date().getTime()
           });
-
-          if (transactionData.change > 0) {
+  
+          if (transactionData.paymentMethod === 'cash') {
             cashFlowStore.add({
-              type: 'expense',
-              amount: transactionData.change,
-              description: `Kembalian - ${transactionData.transactionId}`,
+              type: 'income',
+              amount: transactionData.cashAmount,
+              description: `[Penjualan] - ${transactionData.transactionId}`,
               date: transactionData.date,
               transactionId: transactionData.transactionId,
               paymentMethod: transactionData.paymentMethod,
-              timestamp: new Date().getTime() + 1
+              timestamp: new Date().getTime()
+            });
+  
+            if (transactionData.change > 0) {
+              cashFlowStore.add({
+                type: 'expense',
+                amount: transactionData.change,
+                description: `Kembalian - ${transactionData.transactionId}`,
+                date: transactionData.date,
+                transactionId: transactionData.transactionId,
+                paymentMethod: transactionData.paymentMethod,
+                timestamp: new Date().getTime() + 1
+              });
+            }
+          } else {
+            cashFlowStore.add({
+              type: 'income',
+              amount: transactionData.subtotal,
+              description: `Penjualan (${transactionData.paymentMethod.toUpperCase()}) - ${transactionData.transactionId}`,
+              date: transactionData.date,
+              transactionId: transactionData.transactionId,
+              paymentMethod: transactionData.paymentMethod,
+              timestamp: new Date().getTime()
             });
           }
-        } else {
-          cashFlowStore.add({
-            type: 'income',
-            amount: transactionData.subtotal,
-            description: `Penjualan (${transactionData.paymentMethod.toUpperCase()}) - ${transactionData.transactionId}`,
-            date: transactionData.date,
-            transactionId: transactionData.transactionId,
-            paymentMethod: transactionData.paymentMethod,
-            timestamp: new Date().getTime()
-          });
+        } catch (error) {
+          reject(error);
         }
-      } catch (error) {
-        reject(error);
-      }
-    });
+      });
+    }
   }
-}
-
-export const transactionService = new TransactionService();
+  
+  export const transactionService = new TransactionService();

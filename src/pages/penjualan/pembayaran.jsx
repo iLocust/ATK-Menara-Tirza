@@ -37,12 +37,6 @@ const Pembayaran = () => {
       description: 'Pembayaran dengan uang tunai'
     },
     {
-      id: 'qris',
-      name: 'QRIS',
-      icon: QrCode,
-      description: 'Scan & pay dengan e-wallet atau mobile banking'
-    },
-    {
       id: 'transfer',
       name: 'Transfer Bank',
       icon: Building2,

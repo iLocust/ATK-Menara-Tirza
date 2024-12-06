@@ -1,6 +1,6 @@
 export const DB_CONFIG = {
   name: 'KoperasiDB',
-  version: 3, // Increment version to trigger schema update
+  version: 5, // Increment version untuk memicu pembaruan schema
   stores: {
     stokMasuk: {
       name: 'stokMasuk',
@@ -62,6 +62,19 @@ export const DB_CONFIG = {
         { name: 'date', keyPath: 'date', options: { unique: false } },
         { name: 'transactionId', keyPath: 'transactionId', options: { unique: false } },
         { name: 'bankAccount', keyPath: 'bankAccount', options: { unique: false } }
+      ]
+    },
+    monthlyBalance: {
+      name: 'monthlyBalance',
+      keyPath: 'id',
+      autoIncrement: true,
+      indexes: [
+        { name: 'date', keyPath: 'date', options: { unique: false } },
+        { name: 'monthKey', keyPath: 'monthKey', options: { unique: true } },
+        { name: 'cashIncome', keyPath: 'cashIncome', options: { unique: false } },
+        { name: 'cashExpense', keyPath: 'cashExpense', options: { unique: false } },
+        { name: 'transferIncome', keyPath: 'transferIncome', options: { unique: false } },
+        { name: 'transferExpense', keyPath: 'transferExpense', options: { unique: false } }
       ]
     }
   }

@@ -149,6 +149,13 @@ class DBService {
     });
   }
 
+  async update(storeName, item) {
+    if (!item.id) {
+      throw new Error('Item must have an id property');
+    }
+    return this.put(storeName, item);
+   }
+   
   async delete(storeName, id) {
     const db = await this.ensureDBConnection();
     return new Promise((resolve, reject) => {

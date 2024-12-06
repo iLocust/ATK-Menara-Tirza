@@ -3,138 +3,280 @@ import { stockService } from './StockService';
 import { transactionService } from './TransactionService';
 
 export async function addDummyData() {
-  // Menambahkan dana awal cash
+  const currentDate = new Date();
+  const yesterday = new Date(currentDate);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
   const cashIncome = {
     type: 'income',
-    amount: 2500000,
+    amount: 10000000,
     description: 'Dana Awal Kas',
     paymentMethod: 'cash',
-    date: new Date().toISOString().split('T')[0]
+    date: currentDate.toISOString().split('T')[0]
   };
   
   await cashFlowService.addCashFlow(cashIncome);
 
-  // Menambahkan dummy stok ATK
   const atkItems = [
     {
       produk: 'Pulpen',
       kategori: 'ATK',
-      jumlah: 50,
+      jumlah: 100,
       hargaBeli: 2000,
       hargaJual: 3000,
-      tanggalMasuk: new Date().toISOString().split('T')[0],
+      tanggalMasuk: currentDate.toISOString().split('T')[0],
       batchNumber: 'ATK-001',
-      sisaStok: 50 // Added this field for stock tracking
+      sisaStok: 100
     },
     {
       produk: 'Buku Tulis',
-      kategori: 'ATK',
-      jumlah: 30,
+      kategori: 'ATK', 
+      jumlah: 200,
       hargaBeli: 3500,
       hargaJual: 5000,
-      tanggalMasuk: new Date().toISOString().split('T')[0],
+      tanggalMasuk: currentDate.toISOString().split('T')[0],
       batchNumber: 'ATK-002',
-      sisaStok: 30 // Added this field for stock tracking
-    }
-  ];
-
-  // Menambahkan dummy stok Seragam
-  const seragamItems = [
-    {
-      produk: 'Seragam SD Putih',
-      kategori: 'Seragam',
-      jumlah: 20,
-      hargaBeli: 45000,
-      hargaJual: 60000,
-      tanggalMasuk: new Date().toISOString().split('T')[0],
-      batchNumber: 'SRG-001',
-      sisaStok: 20 // Added this field for stock tracking
+      sisaStok: 200
     },
     {
-      produk: 'Seragam SD Merah',
-      kategori: 'Seragam',
-      jumlah: 20,
-      hargaBeli: 45000,
-      hargaJual: 60000,
-      tanggalMasuk: new Date().toISOString().split('T')[0],
-      batchNumber: 'SRG-002',
-      sisaStok: 20 // Added this field for stock tracking
+      produk: 'Pensil',
+      kategori: 'ATK',
+      jumlah: 150,
+      hargaBeli: 1500,
+      hargaJual: 2500,
+      tanggalMasuk: currentDate.toISOString().split('T')[0],
+      batchNumber: 'ATK-003',
+      sisaStok: 150
+    },
+    {
+      produk: 'Penghapus',
+      kategori: 'ATK',
+      jumlah: 100,
+      hargaBeli: 1000,
+      hargaJual: 2000,
+      tanggalMasuk: currentDate.toISOString().split('T')[0],
+      batchNumber: 'ATK-004',
+      sisaStok: 100
+    },
+    {
+      produk: 'Penggaris',
+      kategori: 'ATK',
+      jumlah: 35,
+      hargaBeli: 2500,
+      hargaJual: 4000,
+      tanggalMasuk: currentDate.toISOString().split('T')[0],
+      batchNumber: 'ATK-005',
+      sisaStok: 75
     }
   ];
 
-  // Menambahkan semua item stok
+  const seragamItems = [
+    {
+      produk: 'Seragam SD Putih (S)',
+      kategori: 'Seragam',
+      jumlah: 20,
+      hargaBeli: 75000,
+      hargaJual: 90000,
+      tanggalMasuk: currentDate.toISOString().split('T')[0],
+      batchNumber: 'SRG-001',
+      sisaStok: 50
+    },
+    {
+      produk: 'Seragam SD Putih (M)',
+      kategori: 'Seragam',
+      jumlah: 10,
+      hargaBeli: 75000,
+      hargaJual: 90000,
+      tanggalMasuk: currentDate.toISOString().split('T')[0],
+      batchNumber: 'SRG-002',
+      sisaStok: 50
+    },
+    {
+      produk: 'Seragam SD Merah (S)',
+      kategori: 'Seragam',
+      jumlah: 12,
+      hargaBeli: 75000,
+      hargaJual: 90000,
+      tanggalMasuk: currentDate.toISOString().split('T')[0],
+      batchNumber: 'SRG-003',
+      sisaStok: 50
+    },
+    {
+      produk: 'Seragam SD Merah (M)',
+      kategori: 'Seragam',
+      jumlah: 13,
+      hargaBeli: 75000,
+      hargaJual: 90000,
+      tanggalMasuk: currentDate.toISOString().split('T')[0],
+      batchNumber: 'SRG-004',
+      sisaStok: 50
+    },
+    {
+      produk: 'Seragam Olahraga (S)',
+      kategori: 'Seragam',
+      jumlah: 30,
+      hargaBeli: 65000,
+      hargaJual: 80000,
+      tanggalMasuk: currentDate.toISOString().split('T')[0],
+      batchNumber: 'SRG-005',
+      sisaStok: 60
+    },
+    {
+      produk: 'Seragam Olahraga (M)',
+      kategori: 'Seragam',
+      jumlah: 10,
+      hargaBeli: 65000,
+      hargaJual: 80000,
+      tanggalMasuk: currentDate.toISOString().split('T')[0],
+      batchNumber: 'SRG-006',
+      sisaStok: 60
+    }
+  ];
+
   for (const item of [...atkItems, ...seragamItems]) {
     await stockService.addStokMasuk(item);
   }
 
-  // Menambahkan dummy transaction
-  const transactionData = {
-    transactionId: 'TRX241201439',
-    date: '2024-12-01',
-    subtotal: 6000,
-    cashAmount: 10000,
-    change: 4000,
-    paymentMethod: 'cash',
-    status: 'completed'
-  };
-
-  const cart = [
+  // Dummy transactions for today
+  const todayTransactions = [
     {
-      id: 1,
-      name: 'Pulpen',
-      quantity: 2,
-      price: 3000 // Using hargaJual from dummy data
+      transactionId: `TRX-${currentDate.getTime()}-1`,
+      date: currentDate.toISOString().split('T')[0],
+      subtotal: 23000,
+      paymentMethod: 'cash',
+      status: 'completed',
+      cashAmount: 25000,
+      change: 2000,
+      cart: [
+        {
+          id: 1,
+          name: 'Pulpen',
+          quantity: 3,
+          price: 3000,
+          kategori: 'ATK'
+        },
+        {
+          id: 2,
+          name: 'Buku Tulis',
+          quantity: 2,
+          price: 5000,
+          kategori: 'ATK'
+        },
+        {
+          id: 3,
+          name: 'Pensil',
+          quantity: 2,
+          price: 2500,
+          kategori: 'ATK'
+        }
+      ]
+    },
+    {
+      transactionId: `TRX-${currentDate.getTime()}-2`,
+      date: currentDate.toISOString().split('T')[0],
+      subtotal: 340000,
+      paymentMethod: 'transfer',
+      status: 'completed',
+      cashAmount: 340000,
+      change: 0,
+      cart: [
+        {
+          id: 4,
+          name: 'Seragam SD Putih (S)',
+          quantity: 2,
+          price: 90000,
+          kategori: 'Seragam'
+        },
+        {
+          id: 5,
+          name: 'Seragam Olahraga (S)',
+          quantity: 2,
+          price: 80000,
+          kategori: 'Seragam'
+        }
+      ]
     }
   ];
 
-  // Process the transaction
-  await transactionService.processTransaction(transactionData, cart);
+  // Dummy transactions for yesterday
+  const yesterdayTransactions = [
+    {
+      transactionId: `TRX-${yesterday.getTime()}-1`,
+      date: yesterday.toISOString().split('T')[0],
+      subtotal: 18000,
+      paymentMethod: 'cash',
+      status: 'completed',
+      cashAmount: 20000,
+      change: 2000,
+      cart: [
+        {
+          id: 1,
+          name: 'Pulpen',
+          quantity: 2,
+          price: 3000,
+          kategori: 'ATK'
+        },
+        {
+          id: 2,
+          name: 'Penghapus',
+          quantity: 3,
+          price: 2000,
+          kategori: 'ATK'
+        },
+        {
+          id: 3,
+          name: 'Penggaris',
+          quantity: 2,
+          price: 4000,
+          kategori: 'ATK'
+        }
+      ]
+    },
+    {
+      transactionId: `TRX-${yesterday.getTime()}-2`,
+      date: yesterday.toISOString().split('T')[0],
+      subtotal: 170000,
+      paymentMethod: 'transfer',
+      status: 'completed',
+      cashAmount: 170000,
+      change: 0,
+      cart: [
+        {
+          id: 4,
+          name: 'Seragam SD Merah (M)',
+          quantity: 1,
+          price: 90000,
+          kategori: 'Seragam'
+        },
+        {
+          id: 5,
+          name: 'Seragam Olahraga (M)',
+          quantity: 1,
+          price: 80000,
+          kategori: 'Seragam'
+        }
+      ]
+    }
+  ];
+
+  for (const transaction of [...todayTransactions, ...yesterdayTransactions]) {
+    await transactionService.processTransaction(transaction, transaction.cart);
+  }
 
   return {
     message: 'Data dummy berhasil ditambahkan!',
     details: {
-      cashFlow: cashIncome,
-      products: [...atkItems, ...seragamItems],
-      transaction: {
-        data: transactionData,
-        items: cart
+      initialBalance: {
+        cash: cashIncome,
+      },
+      products: {
+        atk: atkItems,
+        seragam: seragamItems
+      },
+      transactions: {
+        today: todayTransactions,
+        yesterday: yesterdayTransactions
       }
     }
   };
-}
-
-// Add additional export for individual functions if needed
-export async function addDummyTransaction() {
-  const transactionData = {
-    transactionId: 'TRX241201439',
-    date: '2024-12-01',
-    subtotal: 6000,
-    cashAmount: 10000,
-    change: 4000,
-    paymentMethod: 'cash',
-    status: 'completed'
-  };
-
-  const cart = [
-    {
-      id: 1,
-      name: 'Pulpen',
-      quantity: 2,
-      price: 3000
-    }
-  ];
-
-  try {
-    await transactionService.processTransaction(transactionData, cart);
-    return {
-      message: 'Dummy transaction successfully added!',
-      details: {
-        transaction: transactionData,
-        items: cart
-      }
-    };
-  } catch (error) {
-    console.error('Failed to add dummy transaction:', error);
-    throw error;
-  }
 }

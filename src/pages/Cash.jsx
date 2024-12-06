@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  Wallet, ArrowUpRight, ArrowDownRight, Search,
-  ChevronDown, FilterX, ArrowDownWideNarrow,
-  CreditCard, Printer
+  Wallet, ArrowUpRight, ArrowDownRight, Search, ArrowDownWideNarrow, Download
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,9 +18,9 @@ import {
   Tabs, TabsContent, TabsList, TabsTrigger
 } from "@/components/ui/tabs";
 import { cashFlowService } from '@/lib/db/CashFlowService';
+import { exportCashFlow } from './excelUtils';
 
 const UnifiedCashManagement = () => {
-  // States
   const [balance, setBalance] = useState({ cash: 0, transfer: 0 });
   const [transactions, setTransactions] = useState([]);
   const [filteredTransactions, setFilteredTransactions] = useState([]);
@@ -36,10 +34,8 @@ const UnifiedCashManagement = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [monthlyData, setMonthlyData] = useState({
     dailyBalance: { cash: [], transfer: [] },
-    expenses: { cash: [], transfer: [] },
-    income: { cash: [], transfer: [] },
-    totalExpense: { cash: 0, transfer: 0 },
-    totalIncome: { cash: 0, transfer: 0 }
+    totalIncome: { cash: 0, transfer: 0 },
+    totalExpense: { cash: 0, transfer: 0 }
   });
 
   const [formData, setFormData] = useState({
@@ -49,6 +45,19 @@ const UnifiedCashManagement = () => {
     date: new Date().toISOString().split('T')[0],
     paymentMethod: 'cash'
   });
+  
+  const getYearRange = () => {
+    const currentYear = new Date().getFullYear();
+    const startYear = currentYear - 2;  // 5 tahun ke belakang
+    const endYear = currentYear + 2;    // 2 tahun ke depan
+    const years = [];
+    
+    for (let year = startYear; year <= endYear; year++) {
+      years.push(year);
+    }
+    
+    return years;
+  };
 
   const months = [
     { value: 1, label: 'Januari' },
@@ -64,6 +73,9 @@ const UnifiedCashManagement = () => {
     { value: 11, label: 'November' },
     { value: 12, label: 'Desember' }
   ];
+  const [lastMonthBalance, setLastMonthBalance] = useState({ cash: 0, transfer: 0 });
+
+
 
   useEffect(() => {
     loadData();
@@ -73,74 +85,32 @@ const UnifiedCashManagement = () => {
     try {
       setIsLoading(true);
       setError(null);
-
-      // Get balances
+      
+      // Update balances for the selected month before loading data
+      const startDate = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`;
+      const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
+      const endDate = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-${lastDay}`;
+      
+      // Trigger balance update for the month
+      await cashFlowService.updateBalancesForDateRange(startDate, endDate);
+      
+      // Get current balances
       const cashBalance = await cashFlowService.getCashBalance();
       const transferBalance = await cashFlowService.getTransferBalance();
       setBalance({ cash: cashBalance, transfer: transferBalance });
-
+  
+      // Get last month balance
+      const lastMonth = await cashFlowService.getLastMonthBalance(
+        selectedYear, 
+        selectedMonth
+      );
+      setLastMonthBalance(lastMonth);
+  
       // Get monthly summary
-      const startDate = new Date(selectedYear, selectedMonth - 1, 1);
-      const endDate = new Date(selectedYear, selectedMonth, 0);
-      startDate.setHours(0, 0, 0, 0);
-      endDate.setHours(23, 59, 59, 999);
-
-      const start = startDate.toISOString().split('T')[0];
-      const end = endDate.toISOString().split('T')[0];
-
-      const summary = await cashFlowService.getCashFlowSummary(start, end);
-
-      // Process transactions
-      const cashTransactions = summary.transactions.filter(t => t.paymentMethod === 'cash');
-      const transferTransactions = summary.transactions.filter(t => t.paymentMethod === 'transfer');
-
-      // Process daily balances
-      const processDailyBalances = (transactions) => {
-        // Create an array of all dates in the month
-        const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
-        const allDates = Array.from({ length: daysInMonth }, (_, i) => {
-          const date = new Date(selectedYear, selectedMonth - 1, i + 1);
-          return date.toISOString().split('T')[0];
-        });
+      const summary = await cashFlowService.getCashFlowSummary(startDate, endDate);
       
-        // Initialize daily transactions object with all dates
-        const dailyTxns = allDates.reduce((acc, date) => {
-          acc[date] = { income: 0, expense: 0, balance: 0 };
-          return acc;
-        }, {});
-      
-        // Add transaction data to corresponding dates
-        transactions.forEach(curr => {
-          const date = curr.date;
-          if (curr.type === 'income') {
-            dailyTxns[date].income += curr.amount;
-          } else {
-            dailyTxns[date].expense += curr.amount;
-          }
-          dailyTxns[date].balance = dailyTxns[date].income - dailyTxns[date].expense;
-        });
-      
-        // Calculate running balance
-        let runningBalance = 0;
-        return Object.entries(dailyTxns)
-          .sort(([dateA], [dateB]) => new Date(dateA) - new Date(dateB))
-          .map(([date, values]) => {
-            runningBalance += values.balance;
-            return {
-              date,
-              income: values.income,
-              expense: values.expense,
-              dailyBalance: values.balance,
-              runningBalance
-            };
-          });
-      };
-
       setMonthlyData({
-        dailyBalance: {
-          cash: processDailyBalances(cashTransactions),
-          transfer: processDailyBalances(transferTransactions)
-        },
+        dailyBalance: summary.dailyBalance,
         totalIncome: {
           cash: summary.cash.income,
           transfer: summary.transfer.income
@@ -149,19 +119,20 @@ const UnifiedCashManagement = () => {
           cash: summary.cash.expense,
           transfer: summary.transfer.expense
         },
-        transactions: summary.transactions.sort((a, b) => b.timestamp - a.timestamp)
+        transactions: summary.transactions
       });
-
+  
       setTransactions(summary.transactions);
       setFilteredTransactions(summary.transactions);
-
+  
     } catch (err) {
+      console.error('LoadData Error:', err);
       setError('Gagal memuat data: ' + err.message);
-      console.error('Load data error:', err);
     } finally {
       setIsLoading(false);
     }
   };
+
 
   const handleSubmit = async () => {
     try {
@@ -188,10 +159,6 @@ const UnifiedCashManagement = () => {
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   if (isLoading) {
     return (
       <div className="p-6">
@@ -203,7 +170,7 @@ const UnifiedCashManagement = () => {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Manajemen Kas Koperasi</h1>
@@ -212,9 +179,13 @@ const UnifiedCashManagement = () => {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={handlePrint} variant="outline" className="no-print">
-            <Printer className="h-4 w-4 mr-2" />
-            Cetak Laporan
+             <Button 
+            variant="outline" 
+            className="flex items-center gap-2"
+            onClick={() => exportCashFlow(monthlyData, selectedMonth, selectedYear)}
+          >
+            <Download className="h-4 w-4" />
+            Export
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
@@ -312,7 +283,18 @@ const UnifiedCashManagement = () => {
         </Alert>
       )}
 
-      <div className="grid gap-6 md:grid-cols-4 mb-6">
+      <div className="grid grid-cols-3 gap-4 mb-6">
+      {/* <Card>
+    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardTitle className="text-sm font-medium">Saldo Bulan Lalu</CardTitle>
+      <Wallet className="h-4 w-4 text-gray-500" />
+    </CardHeader>
+    <CardContent>
+      <div className="text-base font-semibold">
+        T: Rp {lastMonthBalance.cashBalance.toLocaleString()}
+      </div>
+    </CardContent>
+  </Card> */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Saldo Kas (Tunai)</CardTitle>
@@ -323,18 +305,17 @@ const UnifiedCashManagement = () => {
           </CardContent>
         </Card>
 
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Pemasukan</CardTitle>
             <ArrowUpRight className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-lg font-semibold text-green-600">
-              Tunai: Rp {monthlyData.totalIncome.cash.toLocaleString()}
+            <div className="text-base font-semibold text-green-600">
+              T: Rp {monthlyData.totalIncome.cash.toLocaleString()}
             </div>
-            <div className="text-lg font-semibold text-green-600">
-              Transfer: Rp {monthlyData.totalIncome.transfer.toLocaleString()}
+            <div className="text-base font-semibold text-green-600">
+              TF: Rp {monthlyData.totalIncome.transfer.toLocaleString()}
             </div>
           </CardContent>
         </Card>
@@ -345,53 +326,66 @@ const UnifiedCashManagement = () => {
             <ArrowDownRight className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-lg font-semibold text-red-600">
-              Tunai: Rp {monthlyData.totalExpense.cash.toLocaleString()}
+            <div className="text-base font-semibold text-red-600">
+              T: Rp {monthlyData.totalExpense.cash.toLocaleString()}
             </div>
-            <div className="text-lg font-semibold text-red-600">
-              Transfer: Rp {monthlyData.totalExpense.transfer.toLocaleString()}
+            <div className="text-base font-semibold text-red-600">
+              TF: Rp {monthlyData.totalExpense.transfer.toLocaleString()}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-12 mb-6">
-        <div className="md:col-span-5">
-          <div className="flex gap-2 mb-4">
-            <Select
-              value={selectedMonth.toString()}
-              onValueChange={(value) => setSelectedMonth(parseInt(value))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Pilih Bulan" />
-              </SelectTrigger>
-              <SelectContent>
-                {months.map((month) => (
-                  <SelectItem key={month.value} value={month.value.toString()}>
-                    {month.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <div className="flex gap-2 mb-4">
+        <Select
+          value={selectedMonth.toString()}
+          onValueChange={(value) => setSelectedMonth(parseInt(value))}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Pilih Bulan" />
+          </SelectTrigger>
+          <SelectContent>
+            {months.map((month) => (
+              <SelectItem key={month.value} value={month.value.toString()}>
+                {month.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-            <Select
-              value={selectedYear.toString()}
-              onValueChange={(value) => setSelectedYear(parseInt(value))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Pilih Tahun" />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((year) => (
-                  <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <Select
+  value={selectedYear.toString()}
+  onValueChange={(value) => setSelectedYear(parseInt(value))}
+>
+  <SelectTrigger>
+    <SelectValue placeholder="Pilih Tahun" />
+  </SelectTrigger>
+  <SelectContent>
+    {getYearRange().map((year) => (
+      <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+    ))}
+  </SelectContent>
+</Select>
+      </div>
 
+      <Tabs defaultValue="daily" className="mb-6">
+        <TabsList className="w-full">
+          <TabsTrigger value="daily" className="flex-1">Rincian Saldo Harian</TabsTrigger>
+          <TabsTrigger value="history" className="flex-1">Riwayat Transaksi</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="daily">
           <Card>
             <CardHeader className="border-b">
-              <CardTitle>Rincian Saldo Harian ({activeTab === 'cash' ? 'Tunai' : 'Transfer'})</CardTitle>
+              <div className="flex justify-between items-center">
+                <CardTitle>Rincian Saldo Harian</CardTitle>
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
+                  <TabsList>
+                    <TabsTrigger value="cash">Tunai</TabsTrigger>
+                    <TabsTrigger value="transfer">Transfer</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <table className="w-full">
@@ -404,12 +398,20 @@ const UnifiedCashManagement = () => {
                   </tr>
                 </thead>
                 <tbody>
+                  {/* Add Saldo Bulan Lalu row */}
+                  <tr className="border-b bg-gray-50">
+                    <td className="py-3 px-4 font-medium">Saldo Bulan Lalu</td>
+                    <td className="py-3 px-4 text-right text-green-600">-</td>
+                    <td className="py-3 px-4 text-right text-red-600">-</td>
+                    <td className="py-3 px-4 text-right font-bold">
+                      Rp {lastMonthBalance.cashBalance.toLocaleString()}
+                    </td>
+                  </tr>
                   {monthlyData.dailyBalance[activeTab].map((item) => (
                     <tr key={item.date} className="border-b hover:bg-gray-50">
                       <td className="py-3 px-4">
                         {new Date(item.date).toLocaleDateString('id-ID', {
                           weekday: 'long',
-                          year: 'numeric',
                           month: 'long',
                           day: 'numeric'
                         })}
@@ -420,7 +422,7 @@ const UnifiedCashManagement = () => {
                       <td className="py-3 px-4 text-right text-red-600">
                         {item.expense > 0 ? `Rp ${item.expense.toLocaleString()}` : '-'}
                       </td>
-                      <td className="py-3 px-4 text-right font-medium">
+                      <td className="py-3 px-4 text-right font-bold">
                         Rp {item.runningBalance.toLocaleString()}
                       </td>
                     </tr>
@@ -429,15 +431,23 @@ const UnifiedCashManagement = () => {
               </table>
             </CardContent>
           </Card>
-        </div>
+        </TabsContent>
 
-        <div className="md:col-span-7">
+        <TabsContent value="history">
           <Card>
             <CardHeader className="border-b">
-              <div className="flex items-center justify-between mb-4">
-                <CardTitle>Riwayat Transaksi</CardTitle>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <CardTitle>Riwayat Transaksi</CardTitle>
+                  <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
+                    <TabsList>
+                      <TabsTrigger value="cash">Tunai</TabsTrigger>
+                      <TabsTrigger value="transfer">Transfer</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
                 <div className="flex gap-2">
-                  <div className="relative">
+                  <div className="relative flex-1">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
                     <Input
                       placeholder="Cari transaksi..."
@@ -452,23 +462,10 @@ const UnifiedCashManagement = () => {
                     onClick={() => setFilterType(filterType === 'all' ? 'income' : filterType === 'income' ? 'expense' : 'all')}
                   >
                     <ArrowDownWideNarrow className="h-4 w-4" />
-                    {filterType === 'all' ? 'Semua' :
-                      filterType === 'income' ? 'Pemasukan' : 'Pengeluaran'}
+                    {filterType === 'all' ? 'Semua' : filterType === 'income' ? 'Pemasukan' : 'Pengeluaran'}
                   </Button>
                 </div>
               </div>
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList>
-                  <TabsTrigger value="cash" className="flex items-center gap-2">
-                    <Wallet className="h-4 w-4" />
-                    Tunai
-                  </TabsTrigger>
-                  <TabsTrigger value="transfer" className="flex items-center gap-2">
-                    <CreditCard className="h-4 w-4" />
-                    Transfer
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y">
@@ -493,7 +490,6 @@ const UnifiedCashManagement = () => {
                           <p className="text-sm text-gray-500">
                             {new Date(transaction.date).toLocaleDateString('id-ID', {
                               weekday: 'long',
-                              year: 'numeric',
                               month: 'long',
                               day: 'numeric'
                             })}
@@ -506,61 +502,11 @@ const UnifiedCashManagement = () => {
                       </span>
                     </div>
                   ))}
-                {filteredTransactions.filter(t => t.paymentMethod === activeTab).length === 0 && (
-                  <div className="p-8 text-center text-gray-500">
-                    Tidak ada transaksi yang ditemukan
-                  </div>
-                )}
               </div>
             </CardContent>
           </Card>
-        </div>
-      </div>
-
-      {/* Print-only summary section */}
-      <div className="print-only mt-8" style={{ display: 'none' }}>
-        <div className="border-t pt-4 mt-4">
-          <h3 className="text-lg font-bold mb-2">Ringkasan:</h3>
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span>Total Pemasukan Tunai:</span>
-              <span className="font-medium">Rp {monthlyData.totalIncome.cash.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Total Pemasukan Transfer:</span>
-              <span className="font-medium">Rp {monthlyData.totalIncome.transfer.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Total Pengeluaran Tunai:</span>
-              <span className="font-medium">Rp {monthlyData.totalExpense.cash.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Total Pengeluaran Transfer:</span>
-              <span className="font-medium">Rp {monthlyData.totalExpense.transfer.toLocaleString()}</span>
-            </div>
-            <div className="border-t pt-2 mt-2">
-              <div className="flex justify-between font-bold">
-                <span>Saldo Akhir Tunai:</span>
-                <span>Rp {(monthlyData.totalIncome.cash - monthlyData.totalExpense.cash).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between font-bold">
-                <span>Saldo Akhir Transfer:</span>
-                <span>Rp {(monthlyData.totalIncome.transfer - monthlyData.totalExpense.transfer).toLocaleString()}</span>
-              </div>
-            </div>
-          </div>
-          <div className="mt-8 text-sm text-gray-500 text-center">
-            <p>Dicetak pada: {new Date().toLocaleDateString('id-ID', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            })}</p>
-          </div>
-        </div>
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

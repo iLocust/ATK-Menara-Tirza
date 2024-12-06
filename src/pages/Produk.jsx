@@ -19,7 +19,6 @@ const Products = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Load products from IndexedDB
   useEffect(() => {
     loadProducts();
   }, []);
@@ -30,17 +29,15 @@ const Products = () => {
       setError(null);
       const stokData = await stockService.getAllStokMasuk();
       
-      // Transform stok masuk data to product format
       const transformedProducts = stokData.map(item => ({
         id: item.id,
         name: item.produk,
         category: item.kategori,
-        price: item.hargaJual || 0, // Only show selling price
+        price: item.hargaJual || 0,
         stock: item.sisaStok,
         tanggalMasuk: item.tanggalMasuk
       }));
 
-      // If multiple entries exist for same product, combine them
       const combinedProducts = transformedProducts.reduce((acc, current) => {
         const existing = acc.find(item => 
           item.name === current.name && 
@@ -49,7 +46,6 @@ const Products = () => {
 
         if (existing) {
           existing.stock += current.stock;
-          // Use the most recent price if available
           if (current.price > 0 && current.tanggalMasuk > existing.tanggalMasuk) {
             existing.price = current.price;
           }
@@ -69,15 +65,12 @@ const Products = () => {
     }
   };
 
-  const categories = [...new Set(products.map(product => product.category))];
-
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  // Loading state
   if (isLoading) {
     return (
       <div className="p-6">
@@ -117,11 +110,8 @@ const Products = () => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Semua Kategori</SelectItem>
-            {categories.map(category => (
-              <SelectItem key={category} value={category}>
-                {category}
-              </SelectItem>
-            ))}
+            <SelectItem value="ATK">ATK</SelectItem>
+            <SelectItem value="Seragam">Seragam</SelectItem>
           </SelectContent>
         </Select>
       </div>

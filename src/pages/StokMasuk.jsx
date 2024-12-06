@@ -68,16 +68,16 @@ const StokMasuk = () => {
   const handleInputChange = (field, value) => {
     setFormData(prev => {
       const newData = { ...prev, [field]: value };
-      
+
       if (field === 'hargaBeli' || field === 'hargaJual') {
         const hargaBeli = parseFloat(field === 'hargaBeli' ? value : prev.hargaBeli) || 0;
         const hargaJual = parseFloat(field === 'hargaJual' ? value : prev.hargaJual) || 0;
-        
+
         if (hargaBeli > 0 && hargaJual > 0) {
           newData.margin = ((hargaJual - hargaBeli) / hargaBeli * 100).toFixed(2);
         }
       }
-      
+
       if (field === 'margin') {
         const hargaBeli = parseFloat(prev.hargaBeli) || 0;
         const marginValue = parseFloat(value) || 0;
@@ -85,7 +85,7 @@ const StokMasuk = () => {
           newData.hargaJual = (hargaBeli * (1 + marginValue / 100)).toFixed(0);
         }
       }
-      
+
       return newData;
     });
   };
@@ -93,10 +93,10 @@ const StokMasuk = () => {
   const handleSubmit = async () => {
     try {
       setError(null);
-      
+
       const totalCost = parseInt(formData.hargaBeli) * parseInt(formData.jumlah);
       const hasSufficientCash = await cashFlowService.checkCashAvailability(totalCost);
-      
+
       if (!hasSufficientCash) {
         setError('Saldo kas tidak mencukupi untuk pembelian stok ini');
         return;
@@ -115,7 +115,7 @@ const StokMasuk = () => {
 
       await stockService.addStokMasuk(newStock);
       await loadStokMasuk();
-      
+
       setFormData({
         produk: '',
         kategori: '',
@@ -125,7 +125,7 @@ const StokMasuk = () => {
         margin: ''
       });
       setIsDialogOpen(false);
-      
+
       setSuccessMessage('Stok berhasil ditambahkan');
       setTimeout(() => setSuccessMessage(null), 3000);
 
@@ -137,22 +137,24 @@ const StokMasuk = () => {
   const handleRestock = async () => {
     try {
       setError(null);
-      
-      const totalCost = parseInt(formData.hargaBeli) * parseInt(formData.jumlah);
+
+      const restockAmount = parseInt(formData.jumlah);
+      const totalCost = parseInt(formData.hargaBeli) * restockAmount;
       const hasSufficientCash = await cashFlowService.checkCashAvailability(totalCost);
-      
+
       if (!hasSufficientCash) {
         setError('Saldo kas tidak mencukupi untuk pembelian stok ini');
         return;
       }
-  
+
       const updatedProduct = {
         ...selectedProduct,
-        jumlah: selectedProduct.jumlah + parseInt(formData.jumlah),
-        sisaStok: selectedProduct.sisaStok + parseInt(formData.jumlah),
-        tanggalMasuk: new Date().toISOString().split('T')[0]
+        jumlah: selectedProduct.jumlah + restockAmount,
+        sisaStok: selectedProduct.sisaStok + restockAmount,
+        tanggalMasuk: new Date().toISOString().split('T')[0],
+        restockAmount: restockAmount // Add this field to track restock amount
       };
-  
+
       if (parseInt(formData.hargaBeli) !== selectedProduct.hargaBeli) {
         updatedProduct.hargaBeli = parseInt(formData.hargaBeli);
       }
@@ -160,10 +162,10 @@ const StokMasuk = () => {
         updatedProduct.hargaJual = parseInt(formData.hargaJual);
         updatedProduct.margin = parseFloat(formData.margin);
       }
-  
+
       await stockService.updateStokMasuk(updatedProduct);
       await loadStokMasuk();
-      
+
       setIsRestockDialogOpen(false);
       setSelectedProduct(null);
       setFormData({
@@ -174,15 +176,16 @@ const StokMasuk = () => {
         hargaJual: '',
         margin: ''
       });
-      
+
       setSuccessMessage('Stok berhasil diperbarui');
       setTimeout(() => setSuccessMessage(null), 3000);
-  
+
     } catch (err) {
       setError('Gagal memperbarui stok: ' + err.message);
       console.error(err);
     }
   };
+
   const handleDelete = async () => {
     try {
       setError(null);
@@ -203,7 +206,7 @@ const StokMasuk = () => {
         hargaJual: parseFloat(formData.hargaJual),
         margin: parseFloat(formData.margin)
       };
-      
+
       await stockService.updateStokMasuk(updatedProduct);
       await loadStokMasuk();
       setIsUpdatePriceDialogOpen(false);
@@ -287,7 +290,7 @@ const StokMasuk = () => {
             <div className="grid gap-4 py-4 px-6">
               <div className="space-y-1.5">
                 <label className="text-sm text-gray-600 font-medium">Kategori</label>
-                <Select 
+                <Select
                   value={formData.kategori}
                   onValueChange={(value) => handleInputChange('kategori', value)}
                 >
@@ -300,29 +303,29 @@ const StokMasuk = () => {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div className="space-y-1.5">
                 <label className="text-sm text-gray-600 font-medium">Produk</label>
-                <Input 
+                <Input
                   placeholder="Masukkan nama produk"
                   value={formData.produk}
                   onChange={(e) => handleInputChange('produk', e.target.value)}
                 />
               </div>
-              
+
               <div className="space-y-1.5">
                 <label className="text-sm text-gray-600 font-medium">Jumlah</label>
-                <Input 
+                <Input
                   type="number"
                   placeholder="Masukkan jumlah"
                   value={formData.jumlah}
                   onChange={(e) => handleInputChange('jumlah', e.target.value)}
                 />
               </div>
-              
+
               <div className="space-y-1.5">
                 <label className="text-sm text-gray-600 font-medium">Harga Beli</label>
-                <Input 
+                <Input
                   type="number"
                   placeholder="Masukkan harga beli"
                   value={formData.hargaBeli}
@@ -340,7 +343,7 @@ const StokMasuk = () => {
                     onChange={(e) => handleInputChange('margin', e.target.value)}
                   />
                 </div>
-                
+
                 <div className="space-y-1.5">
                   <label className="text-sm text-gray-600 font-medium">Harga Jual</label>
                   <Input
@@ -360,7 +363,7 @@ const StokMasuk = () => {
         </Dialog>
 
         <Select onValueChange={handleSort}>
-        <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Urutkan berdasarkan" />
           </SelectTrigger>
           <SelectContent>
@@ -374,37 +377,32 @@ const StokMasuk = () => {
 
       <Card>
         <CardHeader className="border-b">
-          <CardTitle>Daftar Stok Masuk</CardTitle>
-          <p className="text-sm text-gray-500">
-            Klik ikon pensil untuk mengatur harga jual
-          </p>
+          <CardTitle className="text-lg">Daftar Stok Masuk</CardTitle>
+          <p className="text-xs text-gray-500">
+          Klik ikon pensil untuk mengatur harga jual
+        </p>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent >
           <div className="overflow-x-auto">
             <Table>
-            <TableHeader>
-      <TableRow>
-        <TableHead className="font-semibold text-gray-900">Tanggal</TableHead>
-        <TableHead className="font-semibold text-gray-900">Kategori</TableHead>
-        <TableHead className="font-semibold text-gray-900">Produk</TableHead>
-        <TableHead className="font-semibold text-gray-900">Jumlah</TableHead>
-        <TableHead className="font-semibold text-gray-900">Sisa</TableHead>
-        <TableHead className="font-semibold text-gray-900">Harga Beli</TableHead>
-        <TableHead className="font-semibold text-gray-900">Harga Jual</TableHead>
-        <TableHead className="font-semibold text-gray-900">Margin</TableHead>
-        <TableHead className="font-semibold text-gray-900">Aksi</TableHead>
-      </TableRow>
-    </TableHeader>
+              <TableHeader>
+              <TableRow>
+                <TableHead className="font-medium text-gray-900 text-sm py-2">Kategori</TableHead>
+                <TableHead className="font-medium text-gray-900 text-sm py-2">Produk</TableHead>
+                <TableHead className="font-medium text-gray-900 text-sm py-2">Jumlah</TableHead>
+                <TableHead className="font-medium text-gray-900 text-sm py-2">Harga Beli</TableHead>
+                <TableHead className="font-medium text-gray-900 text-sm py-2">Harga Jual</TableHead>
+                <TableHead className="font-medium text-center text-gray-900 text-sm py-2">Aksi</TableHead>
+              </TableRow>
+              </TableHeader>
               <TableBody>
                 {sortedStock.map((item) => (
                   <TableRow key={item.id} className="hover:bg-gray-50">
-                    <TableCell className="text-gray-900">{item.tanggalMasuk}</TableCell>
-                    <TableCell className="text-gray-900">{item.kategori}</TableCell>
-                    <TableCell className="text-gray-900">{item.produk}</TableCell>
-                    <TableCell className="text-gray-900">{item.jumlah}</TableCell>
-                    <TableCell className="text-gray-900">{item.sisaStok}</TableCell>
-                    <TableCell className="text-gray-900">Rp {item.hargaBeli.toLocaleString()}</TableCell>
-                    <TableCell className="text-gray-900">
+                   <TableCell className="text-gray-900 text-sm py-1.5">{item.kategori}</TableCell>
+                  <TableCell className="text-gray-900 text-sm py-1.5">{item.produk}</TableCell>
+                  <TableCell className="text-gray-900 text-sm py-1.5">{item.sisaStok}</TableCell>
+                  <TableCell className="text-gray-900 text-sm py-1.5">Rp {item.hargaBeli.toLocaleString()}</TableCell>
+                  <TableCell className="text-gray-900 text-sm py-1.5">
                       {item.hargaJual ? (
                         `Rp ${item.hargaJual.toLocaleString()}`
                       ) : (
@@ -413,34 +411,31 @@ const StokMasuk = () => {
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-gray-900">
+                    {/* <TableCell className="text-gray-900">
                       {item.margin ? `${item.margin}%` : '-'}
-                    </TableCell>
+                    </TableCell> */}
                     <TableCell>
                       <div className="flex gap-2">
                         <Button
                           variant="ghost"
-                          size="icon"
                           onClick={() => openRestockDialog(item)}
                           className="hover:bg-blue-100 text-blue-600"
                         >
-                          <RefreshCwIcon className="h-4 w-4" />
+                          <RefreshCwIcon className="h-3 w-3" />
                         </Button>
                         <Button
                           variant="ghost"
-                          size="icon"
                           onClick={() => openUpdatePriceDialog(item)}
                           className="hover:bg-gray-100"
                         >
-                          <PencilIcon className="h-4 w-4" />
+                          <PencilIcon className="h-3 w-3" />
                         </Button>
                         <Button
                           variant="ghost"
-                          size="icon"
                           onClick={() => openDeleteDialog(item)}
                           className="hover:bg-red-100 text-red-600"
                         >
-                          <TrashIcon className="h-4 w-4" />
+                          <TrashIcon className="h-3 w-3" />
                         </Button>
                       </div>
                     </TableCell>
@@ -452,71 +447,72 @@ const StokMasuk = () => {
         </CardContent>
       </Card>
 
+
       {/* Restock Dialog */}
       <Dialog open={isRestockDialogOpen} onOpenChange={setIsRestockDialogOpen}>
-  <DialogContent>
-    <DialogHeader>
-      <DialogTitle>Restock Produk</DialogTitle>
-    </DialogHeader>
-    
-    {selectedProduct && (
-      <div className="grid gap-4 py-4 px-6">
-        <div className="space-y-2">
-          <h3 className="font-medium text-black">{selectedProduct.produk}</h3>
-          <div className="text-sm space-y-1">
-            <p className="font-medium text-black">Stok Saat Ini: {selectedProduct.sisaStok}</p>
-            <p className="font-medium text-black">Harga Beli: Rp {selectedProduct.hargaBeli.toLocaleString()}</p>
-            <p className="font-medium text-black">Harga Jual: Rp {selectedProduct.hargaJual.toLocaleString()}</p>
-            <p className="font-medium text-black">Margin: {selectedProduct.margin}%</p>
-          </div>
-        </div>
-        
-        <div className="space-y-1.5">
-          <label className="text-sm text-gray-600 font-medium">Jumlah Tambahan</label>
-          <Input 
-            type="number"
-            value={formData.jumlah}
-            onChange={(e) => handleInputChange('jumlah', e.target.value)}
-          />
-        </div>
-        
-        <div className="space-y-1.5">
-          <label className="text-sm text-gray-600 font-medium">Harga Beli Baru (Opsional)</label>
-          <Input 
-            type="number"
-            value={formData.hargaBeli}
-            onChange={(e) => handleInputChange('hargaBeli', e.target.value)}
-          />
-        </div>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Restock Produk</DialogTitle>
+          </DialogHeader>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <label className="text-sm text-gray-600 font-medium">Margin (%) Baru (Opsional)</label>
-            <Input
-              type="number"
-              value={formData.margin}
-              onChange={(e) => handleInputChange('margin', e.target.value)}
-            />
-          </div>
-          
-          <div className="space-y-1.5">
-            <label className="text-sm text-gray-600 font-medium">Harga Jual Baru (Opsional)</label>
-            <Input
-              type="number"
-              value={formData.hargaJual}
-              onChange={(e) => handleInputChange('hargaJual', e.target.value)}
-            />
-          </div>
-        </div>
-      </div>
-    )}
+          {selectedProduct && (
+            <div className="grid gap-4 py-4 px-6">
+              <div className="space-y-2">
+                <h3 className="font-medium text-black">{selectedProduct.produk}</h3>
+                <div className="text-sm space-y-1">
+                  <p className="font-medium text-black">Stok Saat Ini: {selectedProduct.sisaStok}</p>
+                  <p className="font-medium text-black">Harga Beli: Rp {selectedProduct.hargaBeli.toLocaleString()}</p>
+                  <p className="font-medium text-black">Harga Jual: Rp {selectedProduct.hargaJual.toLocaleString()}</p>
+                  <p className="font-medium text-black">Margin: {selectedProduct.margin}%</p>
+                </div>
+              </div>
 
-    <DialogFooter>
-      <Button variant="outline" onClick={() => setIsRestockDialogOpen(false)}>Batal</Button>
-      <Button onClick={handleRestock}>Simpan</Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
+              <div className="space-y-1.5">
+                <label className="text-sm text-gray-600 font-medium">Jumlah Tambahan</label>
+                <Input
+                  type="number"
+                  value={formData.jumlah}
+                  onChange={(e) => handleInputChange('jumlah', e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm text-gray-600 font-medium">Harga Beli Baru (Opsional)</label>
+                <Input
+                  type="number"
+                  value={formData.hargaBeli}
+                  onChange={(e) => handleInputChange('hargaBeli', e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm text-gray-600 font-medium">Margin (%) Baru (Opsional)</label>
+                  <Input
+                    type="number"
+                    value={formData.margin}
+                    onChange={(e) => handleInputChange('margin', e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm text-gray-600 font-medium">Harga Jual Baru (Opsional)</label>
+                  <Input
+                    type="number"
+                    value={formData.hargaJual}
+                    onChange={(e) => handleInputChange('hargaJual', e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRestockDialogOpen(false)}>Batal</Button>
+            <Button onClick={handleRestock}>Simpan</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Update Price Dialog */}
       <Dialog open={isUpdatePriceDialogOpen} onOpenChange={setIsUpdatePriceDialogOpen}>
@@ -524,7 +520,7 @@ const StokMasuk = () => {
           <DialogHeader>
             <DialogTitle>Update Harga Jual</DialogTitle>
           </DialogHeader>
-          
+
           {selectedProduct && (
             <div className="grid gap-4 py-4 px-6">
               <div className="space-y-2">
@@ -533,7 +529,7 @@ const StokMasuk = () => {
                   Harga Beli: Rp {selectedProduct.hargaBeli.toLocaleString()}
                 </p>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-sm text-gray-600 font-medium">Margin (%)</label>
@@ -544,7 +540,7 @@ const StokMasuk = () => {
                     className="text-right"
                   />
                 </div>
-                
+
                 <div className="space-y-1.5">
                   <label className="text-sm text-gray-600 font-medium">Harga Jual</label>
                   <Input
@@ -585,13 +581,13 @@ const StokMasuk = () => {
             </Alert>
           </div>
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setIsDeleteDialogOpen(false)}
             >
               Batal
             </Button>
-            <Button 
+            <Button
               variant="destructive"
               onClick={handleDelete}
             >

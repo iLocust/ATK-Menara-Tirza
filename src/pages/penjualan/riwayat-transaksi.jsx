@@ -112,13 +112,7 @@ const RiwayatTransaksi = () => {
     }
   };
 
-  const getTransactionTime = (date) => {
-    const d = new Date(date);
-    return d.toLocaleTimeString('id-ID', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
-  };
+
 
   const filteredTransactions = transactions.filter(transaction => {
     const matchesSearch = 
@@ -188,30 +182,7 @@ const RiwayatTransaksi = () => {
               <Button
                 variant="outline"
                 className="flex-1 justify-between text-gray-600"
-              >
-                <div className="flex items-center gap-2">
-                  <CalendarRange className="h-4 w-4" />
-                  Hari Ini
-                </div>
-                <ChevronDown className="h-4 w-4" />
-              </Button>
-
-              <Button
-                variant="outline"
-                className="flex-1 justify-between text-gray-600"
-                onClick={() => setFilterStatus(filterStatus === 'all' ? 'completed' : 'all')}
-              >
-                <div className="flex items-center gap-2">
-                  <ArrowDownWideNarrow className="h-4 w-4" />
-                  {filterStatus === 'all' ? 'Semua Status' : getStatusLabel(filterStatus)}
-                </div>
-                <ChevronDown className="h-4 w-4" />
-              </Button>
-
-              <Button
-                variant="outline"
-                className="flex-1 justify-between text-gray-600"
-                onClick={() => setFilterPayment(filterPayment === 'all' ? 'cash' : 'all')}
+                onClick={() => setFilterPayment(filterPayment === 'all' ? 'cash' : 'transfer')}
               >
                 <div className="flex items-center gap-2">
                   <Wallet className="h-4 w-4" />
@@ -253,7 +224,7 @@ const RiwayatTransaksi = () => {
                         {transaction.id}
                       </span>
                       <span className="text-sm text-gray-600">
-                        {new Date(transaction.date).toLocaleDateString('id-ID')} - {getTransactionTime(transaction.date)}
+                        {new Date(transaction.date).toLocaleDateString('id-ID')}
                       </span>
                     </div>
                   </div>
