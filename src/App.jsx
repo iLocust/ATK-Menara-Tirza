@@ -1,5 +1,4 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import Dashboard from '@/pages/Dashboard';
 import Products from '@/pages/Produk';
@@ -11,32 +10,6 @@ import CashBalance from '@/pages/Cash';
 import SalesReport from '@/pages/SalesReport';
 
 function App() {
-  useEffect(() => {
-    const setupCapacitor = async () => {
-      try {
-        const capacitorModule = await import('../node_modules/@capacitor/core/dist/index.js');
-        const appModule = await import('../node_modules/@capacitor/app/dist/plugin.js');
-        
-        const { Capacitor } = capacitorModule;
-        const { App: CapacitorApp } = appModule;
-
-        if (Capacitor.getPlatform() === 'android') {
-          CapacitorApp.addListener('backButton', ({ canGoBack }) => {
-            if (!canGoBack) {
-              CapacitorApp.exitApp();
-            } else {
-              window.history.back();
-            }
-          });
-        }
-      } catch (error) {
-        console.error('Capacitor initialization error:', error);
-      }
-    };
-
-    setupCapacitor();
-  }, []);
-
   return (
     <Router>
       <Layout>

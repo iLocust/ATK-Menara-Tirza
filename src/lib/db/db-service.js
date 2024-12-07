@@ -1,10 +1,8 @@
 import { DB_CONFIG } from '@/lib/db/db-config';
-import { Capacitor } from '@capacitor/core';
 
 class DBService {
   constructor() {
     this.db = null;
-    this.platform = Capacitor.getPlatform();
     this.initDB();
   }
 

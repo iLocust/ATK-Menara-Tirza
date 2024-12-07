@@ -11,16 +11,12 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@capacitor': path.resolve(__dirname, 'node_modules/@capacitor')
     },
     extensions: ['.mjs', '.js', '.ts', '.jsx', '.json']
   },
-  optimizeDeps: {
-    include: ['@capacitor/core', '@capacitor/app']
-  },
   build: {
     commonjsOptions: {
-      include: [/@capacitor/, /node_modules/]
+      include: [/node_modules/]
     }
   }
 });

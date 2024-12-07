@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">Koperasi Menara Tirza</string>
-    <string name="title_activity_main">Koperasi Menara Tirza</string>
-    <string name="package_name">id.kop.menarartirza.pos</string>
-    <string name="custom_url_scheme">id.kop.menarartirza.pos</string>
-</resources>
