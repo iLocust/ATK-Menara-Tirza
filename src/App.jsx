@@ -14,8 +14,11 @@ function App() {
   useEffect(() => {
     const setupCapacitor = async () => {
       try {
-        const { Capacitor } = await import('@capacitor/core');
-        const { App: CapacitorApp } = await import('@capacitor/app');
+        const capacitorModule = await import('../node_modules/@capacitor/core/dist/index.js');
+        const appModule = await import('../node_modules/@capacitor/app/dist/plugin.js');
+        
+        const { Capacitor } = capacitorModule;
+        const { App: CapacitorApp } = appModule;
 
         if (Capacitor.getPlatform() === 'android') {
           CapacitorApp.addListener('backButton', ({ canGoBack }) => {

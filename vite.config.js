@@ -11,18 +11,16 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@capacitor': path.resolve(__dirname, 'node_modules/@capacitor')
     },
-    extensions: ['.js', '.jsx', '.json']  // Tambahkan ini untuk membantu resolusi file
+    extensions: ['.mjs', '.js', '.ts', '.jsx', '.json']
+  },
+  optimizeDeps: {
+    include: ['@capacitor/core', '@capacitor/app']
   },
   build: {
-    rollupOptions: {
-      external: [
-        '@capacitor/core',
-        '@capacitor/app'
-      ],
-      input: {
-        main: path.resolve(__dirname, 'index.html') 
-      }
+    commonjsOptions: {
+      include: [/@capacitor/, /node_modules/]
     }
   }
 });
