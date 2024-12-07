@@ -1,22 +1,23 @@
 // src/components/layout/Navbar.jsx
-import { Bars3Icon } from '@heroicons/react/24/outline';
+import { Menu } from "lucide-react";
 
 const Navbar = ({ onMenuClick }) => {
   return (
-    <nav className="bg-white shadow-sm">
+    <nav className="bg-blue-950 shadow-sm">
       <div className="px-4">
-        <div className="flex h-16 items-center justify-between">
+        <div className="flex h-20 items-center justify-between">
           <div className="flex items-center">
             <button
               type="button"
-              className="lg:hidden -ml-0.5 h-12 w-12 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-900"
+              className="bg-white lg:hidden -ml-0.5 h-13 w-13 inline-flex items-center justify-center rounded-md text-black hover:text-gray-900"
               onClick={onMenuClick}
             >
-              <Bars3Icon className="h-6 w-6" />
+                <Menu className="h-5 w-5 text-gray-800" />
+
             </button>
             <div className="ml-4 lg:ml-0">
-              <h1 className="text-xl font-semibold text-gray-900">
-                Koperasi ATK Dashboard
+              <h1 className="text-xl font-semibold text-white">
+                Koperasi Menara Tirza
               </h1>
             </div>
           </div>

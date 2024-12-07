@@ -7,7 +7,7 @@ const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex w-screen h-screen bg-gray-100">
+    <div className="flex w-screen h-screen bg-blue-300">
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
       
       <div className="flex flex-col flex-1 overflow-hidden">
