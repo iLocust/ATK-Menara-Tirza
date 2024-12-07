@@ -6,7 +6,7 @@ import Products from './pages/Produk';
 import StokMasuk from './pages/StokMasuk';
 import Penjualan from './pages/Penjualan';
 import Pembayaran from './pages/Penjualan/pembayaran.jsx';
-import RiwayatTransaksi from './pages/Penjualan/riwayat-transaksi.jsx';
+import RiwayatTransaksi from './pages/Penjualan/riwayat-transaksi';
 import CashBalance from './pages/Cash';
 import SalesReport from './pages/SalesReport';
 
