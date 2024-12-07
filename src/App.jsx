@@ -4,9 +4,9 @@ import Layout from '@/components/layout/Layout';
 import Dashboard from '@/pages/Dashboard';
 import Products from '@/pages/Produk';
 import StokMasuk from '@/pages/StokMasuk';
-import Penjualan from '@/pages/Penjualan/index.jsx';  // Explicit path
-import Pembayaran from '@/pages/Penjualan/pembayaran.jsx';
-import RiwayatTransaksi from '@/pages/Penjualan/riwayat-transaksi.jsx';
+import Penjualan from '@/pages/index';
+import Pembayaran from '@/pages/pembayaran';
+import RiwayatTransaksi from '@/pages/riwayat-transaksi';
 import CashBalance from '@/pages/Cash';
 import SalesReport from '@/pages/SalesReport';
 
