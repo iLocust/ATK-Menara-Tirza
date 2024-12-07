@@ -4,9 +4,9 @@ import Layout from './components/layout/Layout';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Produk';
 import StokMasuk from './pages/StokMasuk';
-import Penjualan from './pages/Penjualan';
-import Pembayaran from './pages/penjualan/pembayaran';
-import RiwayatTransaksi from './pages/penjualan/riwayat-transaksi';
+import Penjualan from './pages/Penjualan/index';
+import Pembayaran from './pages/Penjualan/pembayaran';
+import RiwayatTransaksi from './pages/Penjualan/riwayat-transaksi';
 import CashBalance from './pages/Cash';
 import SalesReport from './pages/SalesReport';
 
