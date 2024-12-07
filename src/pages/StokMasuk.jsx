@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { PlusIcon, PencilIcon, TrashIcon, RefreshCwIcon } from 'lucide-react';
+import { PlusIcon, PencilIcon, TrashIcon, Plus } from 'lucide-react';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -43,37 +43,46 @@ const StokMasuk = () => {
   const validateForm = () => {
     const errors = {};
     let isValid = true;
-  
+
     if (!formData.kategori) {
       errors.kategori = 'Kategori harus dipilih';
       isValid = false;
     }
-  
+
     if (!formData.produk.trim()) {
       errors.produk = 'Nama produk harus diisi';
       isValid = false;
     }
-  
+
     if (!formData.jumlah || parseInt(formData.jumlah) <= 0) {
       errors.jumlah = 'Jumlah harus lebih dari 0';
       isValid = false;
     }
-  
+
     if (!formData.hargaBeli || parseInt(formData.hargaBeli) <= 0) {
       errors.hargaBeli = 'Harga beli harus lebih dari 0';
       isValid = false;
     }
-  
+
     if (!formData.margin || parseFloat(formData.margin) <= 0) {
       errors.margin = 'Margin harus lebih dari 0';
       isValid = false;
     }
-  
+
     if (!formData.hargaJual || parseInt(formData.hargaJual) <= 0) {
       errors.hargaJual = 'Harga jual harus lebih dari 0';
       isValid = false;
     }
-  
+
+    // Add validation for selling price
+    const hargaBeli = parseInt(formData.hargaBeli);
+    const hargaJual = parseInt(formData.hargaJual);
+
+    if (hargaJual <= hargaBeli) {
+      errors.hargaJual = 'Harga jual harus lebih besar dari harga beli';
+      isValid = false;
+    }
+
     setFormErrors(errors);
     return isValid;
   };
@@ -121,71 +130,85 @@ const StokMasuk = () => {
         const hargaJual = parseFloat(field === 'hargaJual' ? value : prev.hargaJual) || 0;
 
         if (hargaBeli > 0 && hargaJual > 0) {
-          newData.margin = ((hargaJual - hargaBeli) / hargaBeli * 100).toFixed(2);
+          // Only calculate margin if selling price is higher than purchase price
+          if (hargaJual > hargaBeli) {
+            newData.margin = ((hargaJual - hargaBeli) / hargaBeli * 100).toFixed(2);
+          } else {
+            newData.margin = ''; // Clear margin if invalid price relationship
+          }
         }
       }
 
       if (field === 'margin') {
         const hargaBeli = parseFloat(prev.hargaBeli) || 0;
         const marginValue = parseFloat(value) || 0;
-        if (hargaBeli > 0) {
-          newData.hargaJual = (hargaBeli * (1 + marginValue / 100)).toFixed(0);
+        if (hargaBeli > 0 && marginValue > 0) {
+          const calculatedHargaJual = (hargaBeli * (1 + marginValue / 100)).toFixed(0);
+          // Only update hargaJual if it results in a valid price relationship
+          if (parseInt(calculatedHargaJual) > hargaBeli) {
+            newData.hargaJual = calculatedHargaJual;
+          }
         }
       }
 
       return newData;
     });
+
+    if (formErrors[field]) {
+      setFormErrors(prev => ({ ...prev, [field]: '' }));
+    }
   };
 
   const handleSubmit = async () => {
-  try {
-    setError(null);
-    
-    // Validate form before submission
-    if (!validateForm()) {
-      return;
+    try {
+      setError(null);
+
+      // Validate form before submission
+      if (!validateForm()) {
+        return;
+      }
+
+      const totalCost = parseInt(formData.hargaBeli) * parseInt(formData.jumlah);
+      const hasSufficientCash = await cashFlowService.checkCashAvailability(totalCost);
+
+      if (!hasSufficientCash) {
+        setError('Saldo kas tidak mencukupi untuk pembelian stok ini');
+        return;
+      }
+
+      const newStock = {
+        produk: formData.produk,
+        kategori: formData.kategori,
+        jumlah: parseInt(formData.jumlah),
+        hargaBeli: parseInt(formData.hargaBeli),
+        hargaJual: parseInt(formData.hargaJual) || null,
+        margin: parseFloat(formData.margin) || null,
+        tanggalMasuk: new Date().toISOString().split('T')[0],
+        sisaStok: parseInt(formData.jumlah)
+      };
+
+      await stockService.addStokMasuk(newStock);
+      await loadStokMasuk();
+
+      setFormData({
+        produk: '',
+        kategori: '',
+        jumlah: '',
+        hargaBeli: '',
+        hargaJual: '',
+        margin: ''
+      });
+      setFormErrors({});
+      setIsDialogOpen(false);
+
+      setSuccessMessage('Stok berhasil ditambahkan');
+      setTimeout(() => setSuccessMessage(null), 3000);
+
+    } catch (err) {
+      setError('Gagal menambah data: ' + err.message);
     }
+  };
 
-    const totalCost = parseInt(formData.hargaBeli) * parseInt(formData.jumlah);
-    const hasSufficientCash = await cashFlowService.checkCashAvailability(totalCost);
-
-    if (!hasSufficientCash) {
-      setError('Saldo kas tidak mencukupi untuk pembelian stok ini');
-      return;
-    }
-
-    const newStock = {
-      produk: formData.produk,
-      kategori: formData.kategori,
-      jumlah: parseInt(formData.jumlah),
-      hargaBeli: parseInt(formData.hargaBeli),
-      hargaJual: parseInt(formData.hargaJual) || null,
-      margin: parseFloat(formData.margin) || null,
-      tanggalMasuk: new Date().toISOString().split('T')[0],
-      sisaStok: parseInt(formData.jumlah)
-    };
-
-    await stockService.addStokMasuk(newStock);
-    await loadStokMasuk();
-
-    setFormData({
-      produk: '',
-      kategori: '',
-      jumlah: '',
-      hargaBeli: '',
-      hargaJual: '',
-      margin: ''
-    });
-    setFormErrors({});
-    setIsDialogOpen(false);
-
-    setSuccessMessage('Stok berhasil ditambahkan');
-    setTimeout(() => setSuccessMessage(null), 3000);
-
-  } catch (err) {
-    setError('Gagal menambah data: ' + err.message);
-  }
-};
 
   const handleRestock = async () => {
     try {
@@ -324,142 +347,150 @@ const StokMasuk = () => {
         </Alert>
       )}
 
-      {error && (
+      {/* {error && (
         <Alert variant="destructive" className="mb-6">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-      )}
+      )} */}
 
       <div className="mb-6 flex justify-between items-center">
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="flex items-center gap-2">
-              <PlusIcon className="h-5 w-5" />
-              Tambah Stok Masuk
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-  <DialogHeader>
-    <DialogTitle>Tambah Stok Masuk</DialogTitle>
-  </DialogHeader>
-  <div className="grid gap-4 py-4 px-6">
-    <div className="space-y-1.5">
-      <label className="text-sm text-gray-600 font-medium">Kategori<span className="text-red-500">*</span></label>
-      <Select
-        value={formData.kategori}
-        onValueChange={(value) => {
-          handleInputChange('kategori', value);
-          setFormErrors(prev => ({ ...prev, kategori: '' }));
-        }}
-      >
-        <SelectTrigger className={formErrors.kategori ? 'border-red-500' : ''}>
-          <SelectValue placeholder="Pilih kategori" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="ATK">ATK</SelectItem>
-          <SelectItem value="Seragam">Seragam</SelectItem>
-        </SelectContent>
-      </Select>
-      {formErrors.kategori && (
-        <p className="text-xs text-red-500 mt-1">{formErrors.kategori}</p>
-      )}
-    </div>
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogTrigger asChild>
+          <Button className="flex items-center gap-2">
+            <PlusIcon className="h-5 w-5" />
+            Tambah Stok Masuk
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Tambah Stok Masuk</DialogTitle>
+          </DialogHeader>
+          
+          <div className="grid gap-4 px-6 py-4">
+            {error && (
+              <Alert variant="destructive" className="mx-0">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-    <div className="space-y-1.5">
-      <label className="text-sm text-gray-600 font-medium">Produk<span className="text-red-500">*</span></label>
-      <Input
-        placeholder="Masukkan nama produk"
-        value={formData.produk}
-        onChange={(e) => {
-          handleInputChange('produk', e.target.value);
-          setFormErrors(prev => ({ ...prev, produk: '' }));
-        }}
-        className={formErrors.produk ? 'border-red-500' : ''}
-      />
-      {formErrors.produk && (
-        <p className="text-xs text-red-500 mt-1">{formErrors.produk}</p>
-      )}
-    </div>
+            <div className="space-y-1.5">
+              <label className="text-sm text-gray-600 font-medium">Kategori<span className="text-red-500">*</span></label>
+              <Select
+                value={formData.kategori}
+                onValueChange={(value) => {
+                  handleInputChange('kategori', value);
+                  setFormErrors(prev => ({ ...prev, kategori: '' }));
+                }}
+              >
+                <SelectTrigger className={formErrors.kategori ? 'border-red-500' : ''}>
+                  <SelectValue placeholder="Pilih kategori" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ATK">ATK</SelectItem>
+                  <SelectItem value="Seragam">Seragam</SelectItem>
+                </SelectContent>
+              </Select>
+              {formErrors.kategori && (
+                <p className="text-xs text-red-500 mt-1">{formErrors.kategori}</p>
+              )}
+            </div>
 
-    <div className="space-y-1.5">
-      <label className="text-sm text-gray-600 font-medium">Jumlah<span className="text-red-500">*</span></label>
-      <Input
-        type="number"
-        placeholder="Masukkan jumlah"
-        value={formData.jumlah}
-        onChange={(e) => {
-          handleInputChange('jumlah', e.target.value);
-          setFormErrors(prev => ({ ...prev, jumlah: '' }));
-        }}
-        className={formErrors.jumlah ? 'border-red-500' : ''}
-      />
-      {formErrors.jumlah && (
-        <p className="text-xs text-red-500 mt-1">{formErrors.jumlah}</p>
-      )}
-    </div>
+              <div className="space-y-1.5">
+                <label className="text-sm text-gray-600 font-medium">Produk<span className="text-red-500">*</span></label>
+                <Input
+                  placeholder="Masukkan nama produk"
+                  value={formData.produk}
+                  onChange={(e) => {
+                    handleInputChange('produk', e.target.value);
+                    setFormErrors(prev => ({ ...prev, produk: '' }));
+                  }}
+                  className={formErrors.produk ? 'border-red-500' : ''}
+                />
+                {formErrors.produk && (
+                  <p className="text-xs text-red-500 mt-1">{formErrors.produk}</p>
+                )}
+              </div>
 
-    <div className="space-y-1.5">
-      <label className="text-sm text-gray-600 font-medium">Harga Beli<span className="text-red-500">*</span></label>
-      <Input
-        type="number"
-        placeholder="Masukkan harga beli"
-        value={formData.hargaBeli}
-        onChange={(e) => {
-          handleInputChange('hargaBeli', e.target.value);
-          setFormErrors(prev => ({ ...prev, hargaBeli: '' }));
-        }}
-        className={formErrors.hargaBeli ? 'border-red-500' : ''}
-      />
-      {formErrors.hargaBeli && (
-        <p className="text-xs text-red-500 mt-1">{formErrors.hargaBeli}</p>
-      )}
-    </div>
+              <div className="space-y-1.5">
+                <label className="text-sm text-gray-600 font-medium">Jumlah<span className="text-red-500">*</span></label>
+                <Input
+                  type="number"
+                  placeholder="Masukkan jumlah"
+                  value={formData.jumlah}
+                  onChange={(e) => {
+                    handleInputChange('jumlah', e.target.value);
+                    setFormErrors(prev => ({ ...prev, jumlah: '' }));
+                  }}
+                  className={formErrors.jumlah ? 'border-red-500' : ''}
+                />
+                {formErrors.jumlah && (
+                  <p className="text-xs text-red-500 mt-1">{formErrors.jumlah}</p>
+                )}
+              </div>
 
-    <div className="grid grid-cols-2 gap-4">
-      
-    <div className="space-y-1.5">
-        <label className="text-sm text-gray-600 font-medium">Harga Jual<span className="text-red-500">*</span></label>
-        <Input
-          type="number"
-          placeholder="Harga jual"
-          value={formData.hargaJual}
-          onChange={(e) => {
-            handleInputChange('hargaJual', e.target.value);
-            setFormErrors(prev => ({ ...prev, hargaJual: '' }));
-          }}
-          className={formErrors.hargaJual ? 'border-red-500' : ''}
-        />
-        {formErrors.hargaJual && (
-          <p className="text-xs text-red-500 mt-1">{formErrors.hargaJual}</p>
-        )}
-      </div>
-      <div className="space-y-1.5">
-        <label className="text-sm text-gray-600 font-medium">Margin (%)<span className="text-red-500">*</span></label>
-        <Input
-          type="number"
-          placeholder="Margin"
-          value={formData.margin}
-          onChange={(e) => {
-            handleInputChange('margin', e.target.value);
-            setFormErrors(prev => ({ ...prev, margin: '' }));
-          }}
-          className={formErrors.margin ? 'border-red-500' : ''}
-        />
-        {formErrors.margin && (
-          <p className="text-xs text-red-500 mt-1">{formErrors.margin}</p>
-        )}
-      </div>
+              <div className="space-y-1.5">
+                <label className="text-sm text-gray-600 font-medium">Harga Beli<span className="text-red-500">*</span></label>
+                <Input
+                  type="number"
+                  placeholder="Masukkan harga beli"
+                  value={formData.hargaBeli}
+                  onChange={(e) => {
+                    handleInputChange('hargaBeli', e.target.value);
+                    setFormErrors(prev => ({ ...prev, hargaBeli: '' }));
+                  }}
+                  className={formErrors.hargaBeli ? 'border-red-500' : ''}
+                />
+                {formErrors.hargaBeli && (
+                  <p className="text-xs text-red-500 mt-1">{formErrors.hargaBeli}</p>
+                )}
+              </div>
 
-    </div>
-  </div>
-  <DialogFooter>
-    <Button variant="outline" onClick={() => {
-      setIsDialogOpen(false);
-      setFormErrors({});
-    }}>Batal</Button>
-    <Button onClick={handleSubmit}>Simpan</Button>
-  </DialogFooter>
-</DialogContent>
+              <div className="grid grid-cols-2 gap-4">
+
+                <div className="space-y-1.5">
+                  <label className="text-sm text-gray-600 font-medium">Harga Jual<span className="text-red-500">*</span></label>
+                  <Input
+                    type="number"
+                    placeholder="Harga jual"
+                    value={formData.hargaJual}
+                    onChange={(e) => {
+                      handleInputChange('hargaJual', e.target.value);
+                      setFormErrors(prev => ({ ...prev, hargaJual: '' }));
+                    }}
+                    className={formErrors.hargaJual ? 'border-red-500' : ''}
+                  />
+                  {formErrors.hargaJual && (
+                    <p className="text-xs text-red-500 mt-1">{formErrors.hargaJual}</p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm text-gray-600 font-medium">Margin (%)<span className="text-red-500">*</span></label>
+                  <Input
+                    type="number"
+                    placeholder="Margin"
+                    value={formData.margin}
+                    onChange={(e) => {
+                      handleInputChange('margin', e.target.value);
+                      setFormErrors(prev => ({ ...prev, margin: '' }));
+                    }}
+                    className={formErrors.margin ? 'border-red-500' : ''}
+                  />
+                  {formErrors.margin && (
+                    <p className="text-xs text-red-500 mt-1">{formErrors.margin}</p>
+                  )}
+                </div>
+
+              </div>
+            </div>
+            <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsDialogOpen(false);
+              setFormErrors({});
+              setError(null); 
+            }}>Batal</Button>
+            <Button onClick={handleSubmit}>Simpan</Button>
+          </DialogFooter>
+          </DialogContent>
         </Dialog>
 
         <Select onValueChange={handleSort}>
@@ -467,10 +498,8 @@ const StokMasuk = () => {
             <SelectValue placeholder="Urutkan berdasarkan" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="tanggalMasuk">Tanggal</SelectItem>
             <SelectItem value="hargaBeli">Harga Beli</SelectItem>
             <SelectItem value="hargaJual">Harga Jual</SelectItem>
-            <SelectItem value="margin">Margin</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -479,30 +508,30 @@ const StokMasuk = () => {
         <CardHeader className="border-b">
           <CardTitle className="text-lg">Daftar Stok Masuk</CardTitle>
           <p className="text-xs text-gray-500">
-          Klik ikon pensil untuk mengatur harga jual
-        </p>
+            Klik ikon pensil untuk mengatur harga jual
+          </p>
         </CardHeader>
         <CardContent >
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-              <TableRow>
-                <TableHead className="font-medium text-gray-900 text-sm py-2">Kategori</TableHead>
-                <TableHead className="font-medium text-gray-900 text-sm py-2">Produk</TableHead>
-                <TableHead className="font-medium text-gray-900 text-sm py-2">Jumlah</TableHead>
-                <TableHead className="font-medium text-gray-900 text-sm py-2">Harga Beli</TableHead>
-                <TableHead className="font-medium text-gray-900 text-sm py-2">Harga Jual</TableHead>
-                <TableHead className="font-medium text-center text-gray-900 text-sm py-2">Aksi</TableHead>
-              </TableRow>
+                <TableRow>
+                  <TableHead className="font-medium text-gray-900 text-sm py-2">Kategori</TableHead>
+                  <TableHead className="font-medium text-gray-900 text-sm py-2">Produk</TableHead>
+                  <TableHead className="font-medium text-gray-900 text-sm py-2">Jumlah</TableHead>
+                  <TableHead className="font-medium text-gray-900 text-sm py-2">Harga Beli</TableHead>
+                  <TableHead className="font-medium text-gray-900 text-sm py-2">Harga Jual</TableHead>
+                  <TableHead className="font-medium text-center text-gray-900 text-sm py-2">Aksi</TableHead>
+                </TableRow>
               </TableHeader>
               <TableBody>
                 {sortedStock.map((item) => (
                   <TableRow key={item.id} className="hover:bg-gray-50">
-                   <TableCell className="text-gray-900 text-sm py-1.5">{item.kategori}</TableCell>
-                  <TableCell className="text-gray-900 text-sm py-1.5">{item.produk}</TableCell>
-                  <TableCell className="text-gray-900 text-sm py-1.5">{item.sisaStok}</TableCell>
-                  <TableCell className="text-gray-900 text-sm py-1.5">Rp {item.hargaBeli.toLocaleString()}</TableCell>
-                  <TableCell className="text-gray-900 text-sm py-1.5">
+                    <TableCell className="text-gray-900 text-sm py-1.5">{item.kategori}</TableCell>
+                    <TableCell className="text-gray-900 text-sm py-1.5">{item.produk}</TableCell>
+                    <TableCell className="text-gray-900 text-sm py-1.5">{item.sisaStok}</TableCell>
+                    <TableCell className="text-gray-900 text-sm py-1.5">Rp {item.hargaBeli.toLocaleString()}</TableCell>
+                    <TableCell className="text-gray-900 text-sm py-1.5">
                       {item.hargaJual ? (
                         `Rp ${item.hargaJual.toLocaleString()}`
                       ) : (
@@ -521,7 +550,7 @@ const StokMasuk = () => {
                           onClick={() => openRestockDialog(item)}
                           className="hover:bg-blue-100 text-blue-600"
                         >
-                          <RefreshCwIcon className="h-3 w-3" />
+                          <Plus className="h-3 w-3" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -550,8 +579,8 @@ const StokMasuk = () => {
 
       {/* Restock Dialog */}
       <Dialog open={isRestockDialogOpen} onOpenChange={setIsRestockDialogOpen}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto top-[32vh]">
-      <DialogHeader>
+        <DialogContent className="max-h-[90vh] overflow-y-auto top-[32vh]">
+          <DialogHeader>
             <DialogTitle>Restock Produk</DialogTitle>
           </DialogHeader>
 

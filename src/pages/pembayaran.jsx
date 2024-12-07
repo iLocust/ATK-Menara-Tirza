@@ -143,7 +143,7 @@ const Pembayaran = () => {
           Pembayaran Berhasil!
         </DialogTitle>
       </DialogHeader>
-      <div className="space-y-4 py-4">
+      <div className="space-y-4 py-4 text-black">
         <div className="bg-gray-50 p-4 rounded-lg space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-gray-600">ID Transaksi:</span>

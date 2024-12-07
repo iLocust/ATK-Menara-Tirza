@@ -4,7 +4,6 @@ import { Receipt, Loader2, Download } from 'lucide-react';
 import { transactionService } from '@/lib/db/TransactionService';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-
 import {
   Select,
   SelectContent,
@@ -12,52 +11,71 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { exportSalesReport, exportCombinedReport } from './excelUtils';
 
 const SalesReport = () => {
   const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth().month);
+  const [selectedYear, setSelectedYear] = useState(getCurrentMonth().year);
 
   useEffect(() => {
     loadTransactions();
-  }, [selectedMonth, startDate, endDate]);
+  }, [selectedMonth, selectedYear]);
 
   function getCurrentMonth() {
     const date = new Date();
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    return {
+      month: String(date.getMonth() + 1).padStart(2, '0'),
+      year: String(date.getFullYear())
+    };
   }
 
   function getMonthOptions() {
-    const options = [];
-    const currentDate = new Date();
-    for (let i = 0; i < 12; i++) {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
-      const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const label = date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-      options.push({ value, label });
+    return [
+      { value: "01", label: "Januari" },
+      { value: "02", label: "Februari" },
+      { value: "03", label: "Maret" },
+      { value: "04", label: "April" },
+      { value: "05", label: "Mei" },
+      { value: "06", label: "Juni" },
+      { value: "07", label: "Juli" },
+      { value: "08", label: "Agustus" },
+      { value: "09", label: "September" },
+      { value: "10", label: "Oktober" },
+      { value: "11", label: "November" },
+      { value: "12", label: "Desember" }
+    ];
+  }
+
+  function getYearOptions() {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    
+    // 2 tahun ke belakang
+    for (let i = 2; i > 0; i--) {
+      const year = currentYear - i;
+      years.push({ value: String(year), label: String(year) });
     }
-    return options;
+    
+    // Tahun sekarang
+    years.push({ value: String(currentYear), label: String(currentYear) });
+    
+    // 3 tahun ke depan
+    for (let i = 1; i <= 3; i++) {
+      const year = currentYear + i;
+      years.push({ value: String(year), label: String(year) });
+    }
+    
+    return years;
   }
 
   const loadTransactions = async () => {
     try {
       setIsLoading(true);
-      const [year, month] = selectedMonth.split('-');
-      let start, end;
-      
-      if (startDate && endDate) {
-        start = new Date(startDate);
-        end = new Date(endDate);
-        end.setHours(23, 59, 59);
-      } else {
-        start = new Date(year, month - 1, 1);
-        end = new Date(year, month, 0);
-      }
+      const start = new Date(selectedYear, parseInt(selectedMonth) - 1, 1);
+      const end = new Date(selectedYear, parseInt(selectedMonth), 0, 23, 59, 59);
       
       const data = await transactionService.getTransactionsByDateRange(start, end);
       setTransactions(data);
@@ -70,31 +88,10 @@ const SalesReport = () => {
 
   const handleMonthChange = (value) => {
     setSelectedMonth(value);
-    setStartDate('');
-    setEndDate('');
   };
 
-  const handleStartDateChange = (e) => {
-    const value = e.target.value;
-    setStartDate(value);
-    if (value && (!endDate || new Date(value) > new Date(endDate))) {
-      setEndDate(value);
-    }
-  };
-
-  const handleEndDateChange = (e) => {
-    const value = e.target.value;
-    if (!startDate || value >= startDate) {
-      setEndDate(value);
-    }
-  };
-
-  const getDateConstraints = () => {
-    const [year, month] = selectedMonth.split('-');
-    const monthStart = `${year}-${month}-01`;
-    const lastDay = new Date(year, month, 0).getDate();
-    const monthEnd = `${year}-${month}-${lastDay}`;
-    return { min: monthStart, max: monthEnd };
+  const handleYearChange = (value) => {
+    setSelectedYear(value);
   };
 
   const groupTransactionsByDate = () => {
@@ -146,7 +143,6 @@ const SalesReport = () => {
 
   const dailyGroups = groupTransactionsByDate();
   const monthlyTotal = dailyGroups.reduce((sum, day) => sum + day.dailyTotal, 0);
-  const dateConstraints = getDateConstraints();
 
   return (
     <div className="container mx-auto py-6 max-w-7xl">
@@ -160,10 +156,11 @@ const SalesReport = () => {
                   Rekap Penjualan
                 </CardTitle>
                 <div className="flex items-center gap-2">
-                  <Button
-                    onClick={() => exportSalesReport(dailyGroups)}
+                <Button
+                    onClick={() => dailyGroups?.length ? exportSalesReport(dailyGroups) : null}
+                    disabled={!dailyGroups?.length}
                     variant="outline"
-                    className="bg-white hover:bg-gray-50"
+                    className="bg-white hover:bg-gray-50 disabled:opacity-50"
                   >
                     <Download className="h-4 w-4 mr-2" />
                     Rekap Harian
@@ -179,42 +176,32 @@ const SalesReport = () => {
                   </Button>
                 </div>
               </div>
-              <Select value={selectedMonth} onValueChange={handleMonthChange}>
-                <SelectTrigger className="w-[240px]">
-                  <SelectValue placeholder="Pilih bulan" />
-                </SelectTrigger>
-                <SelectContent>
-                  {getMonthOptions().map(option => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              <div className="flex gap-2">
+                <Select value={selectedMonth} onValueChange={handleMonthChange}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue placeholder="Pilih bulan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getMonthOptions().map(option => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-            <div className="flex gap-4 justify-end items-center">
-              <div className="flex items-center gap-2">
-                <span className="text-sm">Dari:</span>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={handleStartDateChange}
-                  min={dateConstraints.min}
-                  max={dateConstraints.max}
-                  className="w-[200px]"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm">Sampai:</span>
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={handleEndDateChange}
-                  min={startDate || dateConstraints.min}
-                  max={dateConstraints.max}
-                  className="w-[200px]"
-                />
+                <Select value={selectedYear} onValueChange={handleYearChange}>
+                  <SelectTrigger className="w-[120px]">
+                    <SelectValue placeholder="Pilih tahun" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getYearOptions().map(option => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>

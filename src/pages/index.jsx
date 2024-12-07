@@ -77,16 +77,16 @@ const Penjualan = () => {
         setError('Produk tidak ditemukan');
         return;
       }
-
-      // Check if product has enough stock
+  
+      // Check if product has enough stock using sisaStok
       const existingItem = cart.find(item => item.id === currentProduct.id);
       const currentCartQuantity = existingItem ? existingItem.quantity : 0;
       
-      if (currentCartQuantity + 1 > currentProduct.jumlah) {
+      if (currentCartQuantity + 1 > currentProduct.sisaStok) {
         setError('Stok produk tidak mencukupi');
         return;
       }
-
+  
       setError(null);
       
       if (existingItem) {
@@ -101,7 +101,7 @@ const Penjualan = () => {
           name: currentProduct.produk, 
           price: currentProduct.hargaJual,
           quantity: 1,
-          stock: currentProduct.jumlah
+          stock: currentProduct.sisaStok // Changed from jumlah to sisaStok
         }]);
       }
     } catch (err) {
@@ -119,15 +119,15 @@ const Penjualan = () => {
         setError('Produk tidak ditemukan');
         return;
       }
-
-      // Check if new quantity exceeds available stock
-      if (newQuantity > currentProduct.jumlah) {
+  
+      // Check if new quantity exceeds available stock using sisaStok
+      if (newQuantity > currentProduct.sisaStok) {
         setError('Stok produk tidak mencukupi');
         return;
       }
-
+  
       setError(null);
-
+  
       if (newQuantity < 1) {
         setCart(cart.filter(item => item.id !== productId));
       } else {
@@ -281,71 +281,76 @@ const Penjualan = () => {
           <CardTitle>Keranjang Belanja</CardTitle>
         </CardHeader>
         <CardContent className="flex-1 overflow-y-auto">
-          <div className="space-y-4 pt-2">
-            {cart.map((item) => (
-              <div key={item.id} className="flex items-center justify-between border-b pb-4">
-                <div>
-                  <h3 className="font-medium">{item.name}</h3>
-                  <p className="text-sm text-green-600">
-                    Rp {item.price.toLocaleString()}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Subtotal: Rp {(item.price * item.quantity).toLocaleString()}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                  >
-                    -
-                  </Button>
-                  <span className="w-8 text-center">{item.quantity}</span>
-                  <Button 
-                    variant="outline" 
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                  >
-                    +
-                  </Button>
-                </div>
-              </div>
-            ))}
-
-            {cart.length > 0 ? (
-              <div className="space-y-4 sticky bottom-0 bg-white pt-4">
-                <div className="flex justify-between font-semibold text-lg">
-                  <span>Total:</span>
-                  <span className="text-green-600">
-                    Rp {subtotal.toLocaleString()}
-                  </span>
-                </div>
-                <Button 
-                  className="w-full bg-green-600 hover:bg-green-700" 
-                  size="lg"
-                  onClick={handleCheckout}
-                >
-                  Bayar Sekarang ({cart.reduce((sum, item) => sum + item.quantity, 0)} items)
-                </Button>
-              </div>
-            ) : (
-              <div className="h-full flex items-center justify-center">
-                <p className="text-center text-gray-500">Keranjang kosong</p>
-              </div>
-            )}
+    <div className="space-y-4 pt-2">
+      {cart.map((item) => (
+        <div key={item.id} className="flex items-center justify-between border-b pb-4">
+          <div>
+            <h3 className="font-medium">{item.name}</h3>
+            <p className="text-sm text-green-600">
+              Rp {item.price.toLocaleString()}
+            </p>
+            <p className="text-xs text-gray-500">
+              Subtotal: Rp {(item.price * item.quantity).toLocaleString()}
+            </p>
           </div>
-        </CardContent>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => updateQuantity(item.id, item.quantity - 1)}
+            >
+              -
+            </Button>
+            <span className="w-8 text-center">{item.quantity}</span>
+            <Button 
+              variant="outline" 
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => updateQuantity(item.id, item.quantity + 1)}
+              disabled={item.quantity >= item.stock} // Disable if quantity reaches stock limit
+            >
+              +
+            </Button>
+          </div>
+        </div>
+      ))}
+
+      {cart.length > 0 ? (
+        <div className="space-y-4 sticky bottom-0 bg-white pt-4">
+          <div className="flex justify-between font-semibold text-lg">
+            <span>Total:</span>
+            <span className="text-green-600">
+              Rp {subtotal.toLocaleString()}
+            </span>
+          </div>
+          <Button 
+            className="w-full bg-green-600 hover:bg-green-700" 
+            size="lg"
+            onClick={handleCheckout}
+          >
+            Bayar Sekarang ({cart.reduce((sum, item) => sum + item.quantity, 0)} items)
+          </Button>
+        </div>
+      ) : (
+        <div className="h-full flex items-center justify-center">
+          <p className="text-center text-gray-500">Keranjang kosong</p>
+        </div>
+      )}
+    </div>
+  </CardContent>
       </Card>
     </div>
 
     {error && (
-      <Alert variant="destructive" className="absolute top-4 right-4 left-4">
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    )}
+  <div className="fixed top-4 right-4 w-80">
+    <Alert className="bg-red-50 border-red-100">
+      <AlertDescription className="text-red-800">
+        {error}
+      </AlertDescription>
+    </Alert>
+  </div>
+)}
   </div>
 );
 };

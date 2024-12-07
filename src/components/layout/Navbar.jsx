@@ -3,7 +3,7 @@ import { Menu } from "lucide-react";
 
 const Navbar = ({ onMenuClick }) => {
   return (
-    <nav className="bg-blue-950 shadow-sm">
+    <nav className="bg-red-700 shadow-sm">
       <div className="px-4">
         <div className="flex h-20 items-center justify-between">
           <div className="flex items-center">
@@ -16,7 +16,7 @@ const Navbar = ({ onMenuClick }) => {
 
             </button>
             <div className="ml-4 lg:ml-0">
-              <h1 className="text-xl font-semibold text-white">
+              <h1 className="text-3xl font-medium text-white">
                 Koperasi Menara Tirza
               </h1>
             </div>

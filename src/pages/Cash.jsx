@@ -170,6 +170,26 @@ const UnifiedCashManagement = () => {
     }
   };
 
+  const filterDailyBalance = (dailyBalance) => {
+    // Get current date and set to start of day in local time
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Get tomorrow and set to start of day
+    const tomorrow = new Date();
+    tomorrow.setDate(today.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+  
+    return dailyBalance.filter(item => {
+      // Convert item date to local time start of day
+      const itemDate = new Date(item.date);
+      itemDate.setHours(0, 0, 0, 0);
+      
+      // Debug logs
+      
+      return itemDate <= tomorrow;
+    });
+  };
   const handleSubmit = async () => {
     try {
       setError(null);
@@ -421,25 +441,25 @@ const UnifiedCashManagement = () => {
                     </td>
                   </tr>
 
-                  {monthlyData.dailyBalance[activeTab].map((item) => (
-                    <tr key={item.date} className="border-b hover:bg-gray-50">
-                      <td className="py-3 px-4">
-                        {new Date(item.date).toLocaleDateString('id-ID', {
-                          weekday: 'long',
-                          month: 'long',
-                          day: 'numeric'
-                        })}
-                      </td>
-                      <td className="py-3 px-4 text-right text-green-600">
-                        {item.income > 0 ? `Rp ${item.income.toLocaleString()}` : '-'}
-                      </td>
-                      <td className="py-3 px-4 text-right text-red-600">
-                        {item.expense > 0 ? `Rp ${item.expense.toLocaleString()}` : '-'}
-                      </td>
-                      <td className="py-3 px-4 text-right font-bold">
-                        Rp {item.runningBalance.toLocaleString()}
-                      </td>
-                    </tr>
+                  {filterDailyBalance(monthlyData.dailyBalance[activeTab]).map((item) => (
+  <tr key={item.date} className="border-b hover:bg-gray-50">
+    <td className="py-3 px-4">
+      {new Date(item.date).toLocaleDateString('id-ID', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric'
+      })}
+    </td>
+    <td className="py-3 px-4 text-right text-green-600">
+      {item.income > 0 ? `Rp ${item.income.toLocaleString()}` : '-'}
+    </td>
+    <td className="py-3 px-4 text-right text-red-600">
+      {item.expense > 0 ? `Rp ${item.expense.toLocaleString()}` : '-'}
+    </td>
+    <td className="py-3 px-4 text-right font-bold">
+      Rp {item.runningBalance.toLocaleString()}
+    </td>
+  </tr>
                   ))}
 
                   <tr className="border-t-2 border-b bg-gray-100 font-medium">

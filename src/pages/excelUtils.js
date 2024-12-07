@@ -2,7 +2,13 @@ import ExcelJS from 'exceljs';
 
 const exportSalesReport = async (dailyGroups) => {
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Sales Report');
+    const dateParts = dailyGroups[0].date.split('/');
+    const monthNumber = dateParts[1];  // Get the month part
+    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
+                   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    const monthName = months[parseInt(monthNumber) - 1];  // Adjust for 0-based array
+    
+    const worksheet = workbook.addWorksheet(`Penjualan - ${monthName}`);
     let currentRow = 1;
     
     for (const dayData of dailyGroups) {
@@ -341,14 +347,15 @@ const exportCombinedReport = async (transactions) => {
 const exportCashFlow = async (monthlyData, selectedMonth, selectedYear) => {
   if (!monthlyData?.dailyBalance) return;
   const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet('Laporan Kas');
-  
   const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
-                 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  const worksheet = workbook.addWorksheet(`${months[selectedMonth-1]} ${selectedYear}`);
+  
+
 
   // Title
   worksheet.mergeCells('A1:C1');
-  worksheet.getCell('A1').value = `Laporan Kas Koperasi - ${months[selectedMonth-1]} ${selectedYear}`;
+  worksheet.getCell('A1').value = `Rekap Kas Bulanan - ${months[selectedMonth-1]} ${selectedYear}`;
   worksheet.getCell('A1').font = { bold: true, size: 14 };
   worksheet.getCell('A1').alignment = { horizontal: 'center' };
 
@@ -504,7 +511,7 @@ const exportCashFlow = async (monthlyData, selectedMonth, selectedYear) => {
   currentRow++;
 
   const summaryData = [
-    ['Total Pendapatan', totalIncome], // Changed to use totalIncome which includes previous balance
+    ['Total Pendapatan', monthlyIncomeTotal],
     ['Total Pengeluaran', monthlyExpenseTotal],
     ['Saldo Akhir', totalIncome - monthlyExpenseTotal]
   ];
@@ -558,7 +565,7 @@ const exportCashFlow = async (monthlyData, selectedMonth, selectedYear) => {
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `Laporan_Kas_${months[selectedMonth-1]}_${selectedYear}.xlsx`;
+  a.download = `Rekap_Kas_${months[selectedMonth-1]}_${selectedYear}.xlsx`;
   a.click();
   window.URL.revokeObjectURL(url);
 };

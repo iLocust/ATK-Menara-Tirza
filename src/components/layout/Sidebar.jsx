@@ -103,13 +103,13 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         </div>
       </div>
       
-      <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto">
+      <nav className="bg-white text-hflex-1 space-y-1 px-3 py-4 overflow-y-auto">
         {navigation.map((item) => (
           <MenuItem key={item.name} item={item} onClick={() => setIsOpen && setIsOpen(false)} />
         ))}
       </nav>
 
-      <div className="p-4 border-t border-gray-200 bg-gray-50">
+      {/* <div className="p-4 border-t border-gray-200 bg-gray-50">
         <Button 
           variant="outline"
           className="w-full flex items-center justify-center gap-2 bg-white hover:bg-blue-50 hover:text-blue-600 transition-all duration-200"
@@ -119,23 +119,34 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           <DatabaseIcon className="h-4 w-4" />
           {isLoading ? 'Loading...' : 'Import Data Dummy'}
         </Button>
-      </div>
+      </div> */}
     </div>
   );
 
   return (
     <>
-      {/* Mobile Sidebar */}
-      <div className={`fixed inset-0 z-40 lg:hidden ${isOpen ? 'block' : 'hidden'}`}>
+      {/* Mobile Sidebar Overlay */}
+      <div 
+        className={`fixed inset-0 z-40 lg:hidden transition-opacity duration-300 ease-in-out ${
+          isOpen 
+            ? 'opacity-100 pointer-events-auto' 
+            : 'opacity-0 pointer-events-none'
+        }`}
+      >
         <div 
-          className="fixed inset-0 bg-gray-600 bg-opacity-75 backdrop-blur-sm transition-opacity" 
+          className="fixed inset-0 bg-gray-600 bg-opacity-75 backdrop-blur-sm"
           onClick={() => setIsOpen(false)}
         />
         
-        <div className="fixed inset-y-0 left-0 flex w-72 flex-col bg-white shadow-xl transition-transform">
+        {/* Mobile Sidebar Panel */}
+        <div 
+          className={`fixed inset-y-0 left-0 flex w-72 flex-col bg-white shadow-xl transform transition-transform duration-300 ease-in-out ${
+            isOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
           <button
             type="button"
-            className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+            className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 transition-colors duration-200"
             onClick={() => setIsOpen(false)}
           >
             <XMarkIcon className="h-6 w-6" />
@@ -160,7 +171,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
             variant={message.type === 'error' ? "destructive" : "default"}
             className={`
               ${message.type === 'success' ? "bg-green-50 text-green-700 border-green-200" : ""}
-              shadow-lg
+              shadow-lg transform transition-all duration-300 ease-in-out animate-in slide-in-from-bottom-2
             `}
           >
             <AlertDescription>{message.text}</AlertDescription>

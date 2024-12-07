@@ -179,32 +179,40 @@ const RiwayatTransaksi = () => {
             </div>
             
             <div className="md:col-span-7 flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1 justify-between text-gray-600"
-                onClick={() => setFilterPayment(filterPayment === 'all' ? 'cash' : 'transfer')}
-              >
-                <div className="flex items-center gap-2">
-                  <Wallet className="h-4 w-4" />
-                  {filterPayment === 'all' ? 'Semua Pembayaran' : getPaymentLabel(filterPayment)}
-                </div>
-                <ChevronDown className="h-4 w-4" />
-              </Button>
+  <Button
+    variant="outline"
+    className="flex-1 justify-between text-gray-600"
+    onClick={() => {
+      // Create cycling behavior: all -> cash -> transfer -> all
+      const paymentCycle = {
+        'all': 'cash',
+        'cash': 'transfer',
+        'transfer': 'all'
+      };
+      setFilterPayment(paymentCycle[filterPayment]);
+    }}
+  >
+    <div className="flex items-center gap-2">
+      <Wallet className="h-4 w-4" />
+      {filterPayment === 'all' ? 'Semua Pembayaran' : getPaymentLabel(filterPayment)}
+    </div>
+    <ChevronDown className="h-4 w-4" />
+  </Button>
 
-              {(filterStatus !== 'all' || filterPayment !== 'all' || searchTerm) && (
-                <Button
-                  variant="ghost"
-                  className="px-3 text-gray-600"
-                  onClick={() => {
-                    setFilterStatus('all');
-                    setFilterPayment('all');
-                    setSearchTerm('');
-                  }}
-                >
-                  <FilterX className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
+  {(filterStatus !== 'all' || filterPayment !== 'all' || searchTerm) && (
+    <Button
+      variant="ghost"
+      className="px-3 text-gray-600"
+      onClick={() => {
+        setFilterStatus('all');
+        setFilterPayment('all');
+        setSearchTerm('');
+      }}
+    >
+      <FilterX className="h-4 w-4" />
+    </Button>
+  )}
+</div>
           </div>
         </CardHeader>
 
