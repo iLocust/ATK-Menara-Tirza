@@ -1,12 +1,19 @@
 import { DB_CONFIG } from '@/lib/db/db-config';
+import { Capacitor } from '@capacitor/core';
 
 class DBService {
   constructor() {
     this.db = null;
+    this.platform = Capacitor.getPlatform();
     this.initDB();
   }
 
   async initDB() {
+    // Tambahkan pengecekan platform
+    if (this.platform === 'android' || this.platform === 'ios') {
+      console.log('Running on mobile platform:', this.platform);
+    }
+
     return new Promise((resolve, reject) => {
       const checkRequest = indexedDB.open(DB_CONFIG.name);
       
