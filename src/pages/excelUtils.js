@@ -354,34 +354,23 @@ const exportCashFlow = async (monthlyData, selectedMonth, selectedYear) => {
 
   let currentRow = 3;
 
-  // Previous Month's Balance
+  // Previous Month's Balance calculation
   const prevMonthLastDay = new Date(selectedYear, selectedMonth - 1, 0);
   const initialCashBalance = monthlyData.dailyBalance?.cash[0]?.runningBalance - 
                            (monthlyData.dailyBalance?.cash[0]?.income || 0) + 
                            (monthlyData.dailyBalance?.cash[0]?.expense || 0);
 
-  worksheet.mergeCells(`A${currentRow}:B${currentRow}`);
-  worksheet.getCell(`A${currentRow}`).value = `Saldo Kas ${prevMonthLastDay.getDate()} ${months[prevMonthLastDay.getMonth()]} ${prevMonthLastDay.getFullYear()}`;
-  worksheet.getCell(`C${currentRow}`).value = initialCashBalance || 0;
-  worksheet.getCell(`C${currentRow}`).numFmt = '#,##0';
-  worksheet.getCell(`A${currentRow}`).font = { bold: true };
-  worksheet.getCell(`C${currentRow}`).font = { bold: true };
-  worksheet.getRow(currentRow).fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFFFF2CC' }
-  };
-  currentRow += 2;
-
   // Income Section Title
   worksheet.mergeCells(`A${currentRow}:C${currentRow}`);
   worksheet.getCell(`A${currentRow}`).value = 'Pendapatan Harian';
   worksheet.getCell(`A${currentRow}`).font = { bold: true };
-  worksheet.getCell(`A${currentRow}`).fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFE2F0D9' }
-  };
+  worksheet.getRow(currentRow).eachCell({ includeEmpty: true }, cell => {
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE2F0D9' }
+    };
+  });
   currentRow++;
 
   // Income Headers
@@ -391,6 +380,22 @@ const exportCashFlow = async (monthlyData, selectedMonth, selectedYear) => {
   currentRow++;
 
   const startIncomeRow = currentRow;
+
+  // Previous month balance row
+  worksheet.getRow(currentRow).values = [
+    `Saldo ${months[prevMonthLastDay.getMonth()]} ${prevMonthLastDay.getFullYear()}`,
+    initialCashBalance || 0
+  ];
+  worksheet.getRow(currentRow).font = { bold: true };
+  worksheet.getRow(currentRow).eachCell({ includeEmpty: true }, cell => {
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFFFF2CC' }
+    };
+  });
+  worksheet.getCell(`B${currentRow}`).numFmt = '#,##0';
+  currentRow++;
 
   // Filter transactions for current month only
   const currentMonthTransactions = monthlyData.dailyBalance.cash
@@ -418,16 +423,15 @@ const exportCashFlow = async (monthlyData, selectedMonth, selectedYear) => {
     currentRow++;
   });
 
-  // Calculate monthly income total
+  // Calculate total (previous month balance + current month income)
   const monthlyIncomeTotal = currentMonthTransactions.reduce((sum, day) => sum + (day.income || 0), 0);
+  const totalIncome = initialCashBalance + monthlyIncomeTotal;
 
-  // Merge income total column
-  if (startIncomeRow < currentRow) {
-    worksheet.mergeCells(startIncomeRow, 3, currentRow - 1, 3);
-    worksheet.getCell(startIncomeRow, 3).value = monthlyIncomeTotal;
-    worksheet.getCell(startIncomeRow, 3).numFmt = '#,##0';
-    worksheet.getCell(startIncomeRow, 3).alignment = { vertical: 'middle', horizontal: 'center' };
-  }
+  // Merge income total column for all rows including previous month balance
+  worksheet.mergeCells(startIncomeRow, 3, currentRow - 1, 3);
+  worksheet.getCell(startIncomeRow, 3).value = totalIncome;
+  worksheet.getCell(startIncomeRow, 3).numFmt = '#,##0';
+  worksheet.getCell(startIncomeRow, 3).alignment = { vertical: 'middle', horizontal: 'center' };
 
   currentRow += 2;
 
@@ -435,11 +439,13 @@ const exportCashFlow = async (monthlyData, selectedMonth, selectedYear) => {
   worksheet.mergeCells(`A${currentRow}:C${currentRow}`);
   worksheet.getCell(`A${currentRow}`).value = 'Pengeluaran';
   worksheet.getCell(`A${currentRow}`).font = { bold: true };
-  worksheet.getCell(`A${currentRow}`).fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFFDE9D9' }
-  };
+  worksheet.getRow(currentRow).eachCell({ includeEmpty: true }, cell => {
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFFDE9D9' }
+    };
+  });
   currentRow++;
 
   // Expense Headers
@@ -488,17 +494,19 @@ const exportCashFlow = async (monthlyData, selectedMonth, selectedYear) => {
   worksheet.mergeCells(`A${currentRow}:C${currentRow}`);
   worksheet.getCell(`A${currentRow}`).value = 'Ringkasan';
   worksheet.getCell(`A${currentRow}`).font = { bold: true };
-  worksheet.getCell(`A${currentRow}`).fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFB4C6E7' }  // Light blue background
-  };
+  worksheet.getRow(currentRow).eachCell({ includeEmpty: true }, cell => {
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFB4C6E7' }
+    };
+  });
   currentRow++;
 
   const summaryData = [
-    ['Total Pendapatan', monthlyIncomeTotal],
+    ['Total Pendapatan', totalIncome], // Changed to use totalIncome which includes previous balance
     ['Total Pengeluaran', monthlyExpenseTotal],
-    ['Saldo Akhir', initialCashBalance + monthlyIncomeTotal - monthlyExpenseTotal]
+    ['Saldo Akhir', totalIncome - monthlyExpenseTotal]
   ];
 
   summaryData.forEach(([label, value]) => {
@@ -507,12 +515,15 @@ const exportCashFlow = async (monthlyData, selectedMonth, selectedYear) => {
     worksheet.getCell(`C${currentRow}`).value = value;
     worksheet.getCell(`C${currentRow}`).numFmt = '#,##0';
     worksheet.getRow(currentRow).font = { bold: true };
+    
     if (label === 'Saldo Akhir') {
-      worksheet.getRow(currentRow).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFFFF2CC' }  // Light yellow background
-      };
+      worksheet.getRow(currentRow).eachCell({ includeEmpty: true }, cell => {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFFF2CC' }
+        };
+      });
     }
     currentRow++;
   });

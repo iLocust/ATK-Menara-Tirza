@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { transactionService } from '@/lib/db/TransactionService';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { 
   ArrowLeft, Wallet, Building2, Package2, CheckCircle2,
-  AlertCircle, Receipt
+  AlertCircle, Receipt, Printer
 } from 'lucide-react';
 
 const Pembayaran = () => {
@@ -96,11 +96,6 @@ const Pembayaran = () => {
 
       await transactionService.processTransaction(transactionData, cart);
       setShowSuccessDialog(true);
-
-      setTimeout(() => {
-        navigate('/penjualan');
-      }, 3000);
-
     } catch (err) {
       setError('Gagal memproses pembayaran: ' + err.message);
       console.error('Payment error:', err);
@@ -108,6 +103,12 @@ const Pembayaran = () => {
       setIsProcessing(false);
     }
   };
+
+  const handlePrintReceipt = () => {
+    // Implement receipt printing logic here
+    console.log('Printing receipt...');
+  };
+
 
   useEffect(() => {
     const today = new Date();
@@ -134,57 +135,71 @@ const Pembayaran = () => {
         </Alert>
       )}
 
-      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-green-600">
-              <CheckCircle2 className="h-6 w-6" />
-              Pembayaran Berhasil!
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+<Dialog open={showSuccessDialog}>
+    <DialogContent className="sm:max-w-md">
+      <DialogHeader>
+        <DialogTitle className="flex items-center gap-2 text-green-600">
+          <CheckCircle2 className="h-6 w-6" />
+          Pembayaran Berhasil!
+        </DialogTitle>
+      </DialogHeader>
+      <div className="space-y-4 py-4">
+        <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-600">ID Transaksi:</span>
+            <span className="font-medium">{transactionId}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-600">Total:</span>
+            <span className="font-medium">Rp {subtotal.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-600">Metode:</span>
+            <span className="font-medium">
+              {paymentMethod === 'cash' ? 'Tunai' : 'Transfer Bank'}
+            </span>
+          </div>
+          {paymentMethod === 'cash' && (
+            <>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">ID Transaksi:</span>
-                <span className="font-medium">{transactionId}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Total:</span>
-                <span className="font-medium">Rp {subtotal.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Metode:</span>
+                <span className="text-gray-600">Dibayar:</span>
                 <span className="font-medium">
-                  {paymentMethod === 'cash' ? 'Tunai' : 'Transfer Bank'}
+                  Rp {parseInt(cashAmount.replace(/\D/g, '')).toLocaleString()}
                 </span>
               </div>
-              {paymentMethod === 'cash' && (
-                <>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Dibayar:</span>
-                    <span className="font-medium">
-                      Rp {parseInt(cashAmount.replace(/\D/g, '')).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Kembalian:</span>
-                    <span className="font-medium text-green-600">
-                      Rp {change.toLocaleString()}
-                    </span>
-                  </div>
-                </>
-              )}
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Tanggal:</span>
-                <span className="font-medium">{dateInput}</span>
+                <span className="text-gray-600">Kembalian:</span>
+                <span className="font-medium text-green-600">
+                  Rp {change.toLocaleString()}
+                </span>
               </div>
-            </div>
-            <p className="text-center text-sm text-gray-500">
-              Mengalihkan ke halaman penjualan dalam beberapa detik...
-            </p>
+            </>
+          )}
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-600">Tanggal:</span>
+            <span className="font-medium">{dateInput}</span>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </div>
+      <DialogFooter className="flex-col sm:flex-row gap-2">
+        <Button
+          variant="outline"
+          onClick={() => navigate('/penjualan')}
+          className="w-full sm:w-auto"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Kembali
+        </Button>
+        <Button 
+          className="w-full sm:w-auto"
+          onClick={handlePrintReceipt}
+        >
+          <Printer className="mr-2 h-4 w-4" />
+          Cetak Nota
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="h-fit shadow-sm">
@@ -195,7 +210,7 @@ const Pembayaran = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
-            <div className="space-y-4">
+            <div className="space-y-4 pt-3">
               <div className="space-y-3">
                 {cart.map((item) => (
                   <div 

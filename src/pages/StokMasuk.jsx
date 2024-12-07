@@ -550,8 +550,8 @@ const StokMasuk = () => {
 
       {/* Restock Dialog */}
       <Dialog open={isRestockDialogOpen} onOpenChange={setIsRestockDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
+      <DialogContent className="max-h-[90vh] overflow-y-auto top-[32vh]">
+      <DialogHeader>
             <DialogTitle>Restock Produk</DialogTitle>
           </DialogHeader>
 

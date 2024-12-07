@@ -39,8 +39,6 @@ const UnifiedCashManagement = () => {
     totalExpense: { cash: 0, transfer: 0 }
   });
 
-  
-
   const [formData, setFormData] = useState({
     type: 'income',
     amount: '',
@@ -51,14 +49,12 @@ const UnifiedCashManagement = () => {
   
   const getYearRange = () => {
     const currentYear = new Date().getFullYear();
-    const startYear = currentYear - 2;  // 5 tahun ke belakang
-    const endYear = currentYear + 2;    // 2 tahun ke depan
+    const startYear = currentYear - 2;
+    const endYear = currentYear + 2;
     const years = [];
-    
     for (let year = startYear; year <= endYear; year++) {
       years.push(year);
     }
-    
     return years;
   };
 
@@ -78,8 +74,6 @@ const UnifiedCashManagement = () => {
   ];
   const [lastMonthBalance, setLastMonthBalance] = useState({ cashBalance: 0, transferBalance: 0 });
 
-
-
   useEffect(() => {
     loadData();
   }, [selectedMonth, selectedYear]);
@@ -89,15 +83,12 @@ const UnifiedCashManagement = () => {
       setIsLoading(true);
       setError(null);
       
-      // Calculate previous month and year
       const previousMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
       const previousYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
       
-      // Format the monthKey for previous month
       const previousMonthKey = `${previousYear}-${previousMonth.toString().padStart(2, '0')}`;
       const currentMonthKey = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}`;
       
-      // Get previous month's balance from monthlyBalance store
       const previousMonthBalances = await dbService.getAllFromIndex('monthlyBalance', 'monthKey', previousMonthKey);
       const previousMonthBalance = previousMonthBalances.length > 0 
         ? previousMonthBalances[0] 
@@ -105,18 +96,14 @@ const UnifiedCashManagement = () => {
       
       setLastMonthBalance(previousMonthBalance);
       
-      // Calculate date range for current month
       const startDate = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`;
       const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
       const endDate = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-${lastDay}`;
       
-      // Ensure balances are updated for the selected date range
       await cashFlowService.updateBalancesForDateRange(startDate, endDate);
       
-      // Get current month's balance from monthlyBalance store
       const currentMonthBalances = await dbService.getAllFromIndex('monthlyBalance', 'monthKey', currentMonthKey);
       
-      // If we have current month balance, use it; otherwise calculate from cash flow service
       let currentBalance;
       if (currentMonthBalances.length > 0) {
         currentBalance = {
@@ -131,10 +118,8 @@ const UnifiedCashManagement = () => {
       
       setBalance(currentBalance);
       
-      // Get monthly summary for the selected period
       const summary = await cashFlowService.getCashFlowSummary(startDate, endDate);
       
-      // Calculate running balances for daily records
       const cashDailyBalance = summary.dailyBalance.cash.map(day => ({
         ...day,
         runningBalance: previousMonthBalance.cashBalance + day.dailyBalance
@@ -145,7 +130,6 @@ const UnifiedCashManagement = () => {
         runningBalance: previousMonthBalance.transferBalance + day.dailyBalance
       }));
       
-      // Update running balances cumulatively
       let cashRunningBalance = previousMonthBalance.cashBalance;
       let transferRunningBalance = previousMonthBalance.transferBalance;
       
@@ -159,7 +143,6 @@ const UnifiedCashManagement = () => {
         day.runningBalance = transferRunningBalance;
       });
       
-      // Set monthly data state
       setMonthlyData({
         dailyBalance: {
           cash: cashDailyBalance,
@@ -176,7 +159,6 @@ const UnifiedCashManagement = () => {
         transactions: summary.transactions
       });
       
-      // Set transaction states
       setTransactions(summary.transactions);
       setFilteredTransactions(summary.transactions);
   
@@ -187,7 +169,6 @@ const UnifiedCashManagement = () => {
       setIsLoading(false);
     }
   };
-
 
   const handleSubmit = async () => {
     try {
@@ -234,7 +215,7 @@ const UnifiedCashManagement = () => {
           </p>
         </div>
         <div className="flex gap-2">
-             <Button 
+          <Button 
             variant="outline" 
             className="flex items-center gap-2"
             onClick={() => exportCashFlow(monthlyData, selectedMonth, selectedYear)}
@@ -242,31 +223,16 @@ const UnifiedCashManagement = () => {
             <Download className="h-4 w-4" />
             Export
           </Button>
+          
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button>Tambah Transaksi</Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[90vh] overflow-y-auto top-[40vh]">
               <DialogHeader>
                 <DialogTitle>Tambah Transaksi Kas</DialogTitle>
               </DialogHeader>
               <div className="grid gap-4 p-5">
-                <div className="space-y-1.5 ">
-                  <label className="text-sm text-gray-600 font-medium">Metode Pembayaran</label>
-                  <Select
-                    value={formData.paymentMethod}
-                    onValueChange={(value) => setFormData({ ...formData, paymentMethod: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih metode pembayaran" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cash">Tunai</SelectItem>
-                      <SelectItem value="transfer">Transfer</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
                 <div className="space-y-1.5">
                   <label className="text-sm text-gray-600 font-medium">Jenis Transaksi</label>
                   <Select
@@ -328,7 +294,8 @@ const UnifiedCashManagement = () => {
                   Simpan
                 </Button>
               </DialogFooter>
-            </DialogContent>          </Dialog>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -339,53 +306,42 @@ const UnifiedCashManagement = () => {
       )}
 
       <div className="grid grid-cols-3 gap-4 mb-6">
-      {/* <Card>
-    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-      <CardTitle className="text-sm font-medium">Saldo Bulan Lalu</CardTitle>
-      <Wallet className="h-4 w-4 text-gray-500" />
-    </CardHeader>
-    <CardContent>
-      <div className="text-base font-semibold">
-        T: Rp {lastMonthBalance.cashBalance.toLocaleString()}
-      </div>
-    </CardContent>
-  </Card> */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Saldo Kas (Tunai)</CardTitle>
-            <Wallet className="h-4 w-4 text-primary" />
+            <CardTitle className="text-lg font-medium">Saldo Kas (Tunai)</CardTitle>
+            <Wallet className="h-7 w-7 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">Rp {balance.cash.toLocaleString()}</div>
+            <div className="text-2xl text-center font-bold">Rp {balance.cash.toLocaleString()}</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Pemasukan</CardTitle>
-            <ArrowUpRight className="h-4 w-4 text-green-600" />
+            <CardTitle className="text-lg font-medium">Total Pemasukan</CardTitle>
+            <ArrowUpRight className="h-7 w-7 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-base font-semibold text-green-600">
-              T: Rp {monthlyData.totalIncome.cash.toLocaleString()}
+            <div className="text-lg font-semibold text-green-600">
+              Tunai: Rp {monthlyData.totalIncome.cash.toLocaleString()}
             </div>
-            <div className="text-base font-semibold text-green-600">
-              TF: Rp {monthlyData.totalIncome.transfer.toLocaleString()}
+            <div className="text-lg font-semibold text-green-600">
+              Transfer: Rp {monthlyData.totalIncome.transfer.toLocaleString()}
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Pengeluaran</CardTitle>
-            <ArrowDownRight className="h-4 w-4 text-red-600" />
+            <CardTitle className="text-lg font-medium">Total Pengeluaran</CardTitle>
+            <ArrowDownRight className="h-7 w-7 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-base font-semibold text-red-600">
-              T: Rp {monthlyData.totalExpense.cash.toLocaleString()}
+            <div className="text-lg font-semibold text-red-600">
+              Tunai: Rp {monthlyData.totalExpense.cash.toLocaleString()}
             </div>
-            <div className="text-base font-semibold text-red-600">
-              TF: Rp {monthlyData.totalExpense.transfer.toLocaleString()}
+            <div className="text-lg font-semibold text-red-600">
+              Transfer: Rp {monthlyData.totalExpense.transfer.toLocaleString()}
             </div>
           </CardContent>
         </Card>
@@ -409,112 +365,108 @@ const UnifiedCashManagement = () => {
         </Select>
 
         <Select
-  value={selectedYear.toString()}
-  onValueChange={(value) => setSelectedYear(parseInt(value))}
->
-  <SelectTrigger>
-    <SelectValue placeholder="Pilih Tahun" />
-  </SelectTrigger>
-  <SelectContent>
-    {getYearRange().map((year) => (
-      <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-    ))}
-  </SelectContent>
-</Select>
+          value={selectedYear.toString()}
+          onValueChange={(value) => setSelectedYear(parseInt(value))}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Pilih Tahun" />
+          </SelectTrigger>
+          <SelectContent>
+            {getYearRange().map((year) => (<SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <Tabs defaultValue="daily" className="mb-6">
         <TabsList className="w-full">
-          <TabsTrigger value="daily" className="flex-1">Rincian Saldo Harian</TabsTrigger>
-          <TabsTrigger value="history" className="flex-1">Riwayat Transaksi</TabsTrigger>
+          <TabsTrigger value="daily" className="flex-1 data-[state=active]:font-bold">Rincian Saldo Harian</TabsTrigger>
+          <TabsTrigger value="history" className="flex-1 data-[state=active]:font-bold">Riwayat Transaksi</TabsTrigger>
         </TabsList>
 
         <TabsContent value="daily">
-  <Card>
-    <CardHeader className="border-b">
-      <div className="flex justify-between items-center">
-        <CardTitle>Rincian Saldo Harian</CardTitle>
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
-          <TabsList>
-            <TabsTrigger value="cash">Tunai</TabsTrigger>
-            <TabsTrigger value="transfer">Transfer</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
-    </CardHeader>
-    <CardContent className="p-0">
-      <table className="w-full">
-        <thead>
-          <tr className="border-b bg-gray-50">
-            <th className="py-3 px-4 text-left font-medium">Tanggal</th>
-            <th className="py-3 px-4 text-right font-medium">Masuk</th>
-            <th className="py-3 px-4 text-right font-medium">Keluar</th>
-            <th className="py-3 px-4 text-right font-medium">Saldo</th>
-          </tr>
-        </thead>
-        <tbody>
-          {/* Previous month balance row */}
-          <tr className="border-b bg-gray-50">
-            <td className="py-3 px-4 font-medium">
-              Saldo {months.find(m => m.value === (selectedMonth === 1 ? 12 : selectedMonth - 1))?.label}
-            </td>
-            <td className="py-3 px-4 text-right text-green-600">-</td>
-            <td className="py-3 px-4 text-right text-red-600">-</td>
-            <td className="py-3 px-4 text-right font-bold">
-              Rp {activeTab === 'cash' 
-                ? lastMonthBalance.cashBalance.toLocaleString() 
-                : lastMonthBalance.transferBalance.toLocaleString()}
-            </td>
-          </tr>
+          <Card>
+            <CardHeader className="border-b">
+              <div className="flex justify-between items-center">
+                <CardTitle>Rincian Saldo Harian</CardTitle>
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
+                  <TabsList>
+                    <TabsTrigger value="cash">Tunai</TabsTrigger>
+                    <TabsTrigger value="transfer">Transfer</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b bg-gray-50">
+                    <th className="py-3 px-4 text-left font-medium">Tanggal</th>
+                    <th className="py-3 px-4 text-right font-medium">Masuk</th>
+                    <th className="py-3 px-4 text-right font-medium">Keluar</th>
+                    <th className="py-3 px-4 text-right font-medium">Saldo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b bg-gray-50">
+                    <td className="py-3 px-4 font-medium">
+                      Saldo {months.find(m => m.value === (selectedMonth === 1 ? 12 : selectedMonth - 1))?.label}
+                    </td>
+                    <td className="py-3 px-4 text-right text-green-600">-</td>
+                    <td className="py-3 px-4 text-right text-red-600">-</td>
+                    <td className="py-3 px-4 text-right font-bold">
+                      Rp {activeTab === 'cash' 
+                        ? lastMonthBalance.cashBalance.toLocaleString() 
+                        : lastMonthBalance.transferBalance.toLocaleString()}
+                    </td>
+                  </tr>
 
-          {/* Daily transactions rows */}
-          {monthlyData.dailyBalance[activeTab].map((item) => (
-            <tr key={item.date} className="border-b hover:bg-gray-50">
-              <td className="py-3 px-4">
-                {new Date(item.date).toLocaleDateString('id-ID', {
-                  weekday: 'long',
-                  month: 'long',
-                  day: 'numeric'
-                })}
-              </td>
-              <td className="py-3 px-4 text-right text-green-600">
-                {item.income > 0 ? `Rp ${item.income.toLocaleString()}` : '-'}
-              </td>
-              <td className="py-3 px-4 text-right text-red-600">
-                {item.expense > 0 ? `Rp ${item.expense.toLocaleString()}` : '-'}
-              </td>
-              <td className="py-3 px-4 text-right font-bold">
-                Rp {item.runningBalance.toLocaleString()}
-              </td>
-            </tr>
-          ))}
+                  {monthlyData.dailyBalance[activeTab].map((item) => (
+                    <tr key={item.date} className="border-b hover:bg-gray-50">
+                      <td className="py-3 px-4">
+                        {new Date(item.date).toLocaleDateString('id-ID', {
+                          weekday: 'long',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </td>
+                      <td className="py-3 px-4 text-right text-green-600">
+                        {item.income > 0 ? `Rp ${item.income.toLocaleString()}` : '-'}
+                      </td>
+                      <td className="py-3 px-4 text-right text-red-600">
+                        {item.expense > 0 ? `Rp ${item.expense.toLocaleString()}` : '-'}
+                      </td>
+                      <td className="py-3 px-4 text-right font-bold">
+                        Rp {item.runningBalance.toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
 
-          {/* Total income minus expenses row at the bottom */}
-          <tr className="border-t-2 border-b bg-gray-100 font-medium">
-            <td className="py-4 px-4 font-medium">
-              Total Pendapatan - Pengeluaran
-            </td>
-            <td className="py-4 px-4 text-right text-green-600">
-              Rp {activeTab === 'cash' 
-                ? monthlyData.totalIncome.cash.toLocaleString()
-                : monthlyData.totalIncome.transfer.toLocaleString()}
-            </td>
-            <td className="py-4 px-4 text-right text-red-600">
-              Rp {activeTab === 'cash'
-                ? monthlyData.totalExpense.cash.toLocaleString()
-                : monthlyData.totalExpense.transfer.toLocaleString()}
-            </td>
-            <td className="py-4 px-4 text-right font-bold">
-              Rp {activeTab === 'cash'
-                ? (monthlyData.totalIncome.cash - monthlyData.totalExpense.cash).toLocaleString()
-                : (monthlyData.totalIncome.transfer - monthlyData.totalExpense.transfer).toLocaleString()}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </CardContent>
-  </Card>
-</TabsContent>
+                  <tr className="border-t-2 border-b bg-gray-100 font-medium">
+                    <td className="py-4 px-4 font-medium">
+                      Total Pendapatan - Pengeluaran
+                    </td>
+                    <td className="py-4 px-4 text-right text-green-600">
+                      Rp {activeTab === 'cash' 
+                        ? monthlyData.totalIncome.cash.toLocaleString()
+                        : monthlyData.totalIncome.transfer.toLocaleString()}
+                    </td>
+                    <td className="py-4 px-4 text-right text-red-600">
+                      Rp {activeTab === 'cash'
+                        ? monthlyData.totalExpense.cash.toLocaleString()
+                        : monthlyData.totalExpense.transfer.toLocaleString()}
+                    </td>
+                    <td className="py-4 px-4 text-right font-bold">
+                      Rp {activeTab === 'cash'
+                        ? (monthlyData.totalIncome.cash - monthlyData.totalExpense.cash).toLocaleString()
+                        : (monthlyData.totalIncome.transfer - monthlyData.totalExpense.transfer).toLocaleString()}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="history">
           <Card>

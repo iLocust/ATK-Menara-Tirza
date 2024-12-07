@@ -9,8 +9,6 @@ import RiwayatTransaksi from './pages/penjualan/riwayat-transaksi';
 import CashBalance from './pages/Cash';
 import SalesReport from './pages/SalesReport';
 
-
-
 function App() {
   return (
     <Router>

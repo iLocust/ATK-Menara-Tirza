@@ -130,7 +130,7 @@ const Products = () => {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 text-white">
               <Badge variant="secondary">{product.category}</Badge>
               {product.price > 0 ? (
                 <div className="font-semibold text-right text-black">
