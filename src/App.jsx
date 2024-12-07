@@ -1,14 +1,14 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useEffect } from 'react';
-import Layout from './components/layout/Layout';
-import Dashboard from './pages/Dashboard';
-import Products from './pages/Produk';
-import StokMasuk from './pages/StokMasuk';
-import Penjualan from './pages/Penjualan';
-import Pembayaran from './pages/Penjualan/pembayaran.jsx';
-import RiwayatTransaksi from './pages/Penjualan/riwayat-transaksi';
-import CashBalance from './pages/Cash';
-import SalesReport from './pages/SalesReport';
+import Layout from '@/components/layout/Layout';
+import Dashboard from '@/pages/Dashboard';
+import Products from '@/pages/Produk';
+import StokMasuk from '@/pages/StokMasuk';
+import Penjualan from '@/pages/Penjualan/index.jsx';  // Explicit path
+import Pembayaran from '@/pages/Penjualan/pembayaran.jsx';
+import RiwayatTransaksi from '@/pages/Penjualan/riwayat-transaksi.jsx';
+import CashBalance from '@/pages/Cash';
+import SalesReport from '@/pages/SalesReport';
 
 function App() {
   useEffect(() => {
