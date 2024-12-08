@@ -43,7 +43,6 @@ const UnifiedCashManagement = () => {
     type: 'income',
     amount: '',
     description: '',
-    date: new Date().toISOString().split('T')[0],
     paymentMethod: 'cash'
   });
   
@@ -177,7 +176,7 @@ const UnifiedCashManagement = () => {
     
     // Get tomorrow and set to start of day
     const tomorrow = new Date();
-    tomorrow.setDate(today.getDate() + 1);
+    tomorrow.setDate(today.getDate());
     tomorrow.setHours(0, 0, 0, 0);
   
     return dailyBalance.filter(item => {
@@ -190,13 +189,19 @@ const UnifiedCashManagement = () => {
       return itemDate <= tomorrow;
     });
   };
+
   const handleSubmit = async () => {
     try {
       setError(null);
+      const currentDate = new Date();
+      // Set to local timezone
+      currentDate.setMinutes(currentDate.getMinutes() - currentDate.getTimezoneOffset());
+      
       const newTransaction = {
         ...formData,
         amount: parseInt(formData.amount.replace(/\./g, '')),
-        timestamp: new Date().getTime()
+        date: currentDate.toISOString().split('T')[0], // Use current date
+        timestamp: currentDate.getTime()
       };
 
       await cashFlowService.addCashFlow(newTransaction);
@@ -206,7 +211,6 @@ const UnifiedCashManagement = () => {
         type: 'income',
         amount: '',
         description: '',
-        date: new Date().toISOString().split('T')[0],
         paymentMethod: 'cash'
       });
       setIsDialogOpen(false);
@@ -245,77 +249,69 @@ const UnifiedCashManagement = () => {
           </Button>
           
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>Tambah Transaksi</Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[90vh] overflow-y-auto top-[40vh]">
-              <DialogHeader>
-                <DialogTitle>Tambah Transaksi Kas</DialogTitle>
-              </DialogHeader>
-              <div className="grid gap-4 p-5">
-                <div className="space-y-1.5">
-                  <label className="text-sm text-gray-600 font-medium">Jenis Transaksi</label>
-                  <Select
-                    value={formData.type}
-                    onValueChange={(value) => setFormData({ ...formData, type: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih jenis transaksi" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="income">Pemasukan</SelectItem>
-                      <SelectItem value="expense">Pengeluaran</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+        <DialogTrigger asChild>
+          <Button>Tambah Transaksi</Button>
+        </DialogTrigger>
+        <DialogContent className="max-h-[90vh] overflow-y-auto top-[40vh]">
+          <DialogHeader>
+            <DialogTitle>Tambah Transaksi Kas</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 p-5">
+            <div className="space-y-1.5">
+              <label className="text-sm text-gray-600 font-medium">Jenis Transaksi</label>
+              <Select
+                value={formData.type}
+                onValueChange={(value) => setFormData({ ...formData, type: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih jenis transaksi" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="income">Pemasukan</SelectItem>
+                  <SelectItem value="expense">Pengeluaran</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-sm text-gray-600 font-medium">Jumlah</label>
-                  <Input
-                    type="text"
-                    placeholder="Masukkan jumlah"
-                    value={formData.amount}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      const numberOnly = value.replace(/\D/g, '');
-                      const formatted = numberOnly.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-                      setFormData({ ...formData, amount: formatted });
-                    }}
-                  />
-                </div>
+            <div className="space-y-1.5">
+              <label className="text-sm text-gray-600 font-medium">Jumlah</label>
+              <Input
+                type="text"
+                placeholder="Masukkan jumlah"
+                value={formData.amount}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  const numberOnly = value.replace(/\D/g, '');
+                  const formatted = numberOnly.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+                  setFormData({ ...formData, amount: formatted });
+                }}
+              />
+            </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-sm text-gray-600 font-medium">Keterangan</label>
-                  <Input
-                    placeholder="Masukkan keterangan"
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  />
-                </div>
+            <div className="space-y-1.5">
+              <label className="text-sm text-gray-600 font-medium">Keterangan</label>
+              <Input
+                placeholder="Masukkan keterangan"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              />
+            </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-sm text-gray-600 font-medium">Tanggal</label>
-                  <Input
-                    type="date"
-                    value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  />
-                </div>
-              </div>
+          </div>
 
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                  Batal
-                </Button>
-                <Button
-                  onClick={handleSubmit}
-                  disabled={!formData.amount || !formData.description}
-                >
-                  Simpan
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              Batal
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={!formData.amount || !formData.description}
+            >
+              Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
         </div>
       </div>
 

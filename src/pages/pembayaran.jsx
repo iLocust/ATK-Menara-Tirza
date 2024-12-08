@@ -20,7 +20,6 @@ const Pembayaran = () => {
   const [cashAmount, setCashAmount] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState(null);
-  const [dateInput, setDateInput] = useState('');
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
 
   const paymentMethods = [
@@ -37,6 +36,19 @@ const Pembayaran = () => {
       description: 'Transfer melalui rekening bank'
     }
   ];
+
+  const getCurrentDate = () => {
+    const today = new Date();
+    const day = String(today.getDate()).padStart(2, '0');
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  const getCurrentISODate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
 
   const commonAmounts = [
     { value: 10000, label: '10.000' },
@@ -76,17 +88,12 @@ const Pembayaran = () => {
 
   const handlePayment = async () => {
     try {
-      if (!validateDate(dateInput)) {
-        setError('Format tanggal tidak valid. Gunakan format DD/MM/YYYY');
-        return;
-      }
-
       setIsProcessing(true);
       setError(null);
 
       const transactionData = {
         transactionId,
-        date: convertToISODate(dateInput),
+        date: getCurrentISODate(), // Use current date
         subtotal,
         paymentMethod,
         cashAmount: paymentMethod === 'cash' ? parseInt(cashAmount.replace(/\D/g, '')) : subtotal,
@@ -109,15 +116,6 @@ const Pembayaran = () => {
     console.log('Printing receipt...');
   };
 
-
-  useEffect(() => {
-    const today = new Date();
-    const day = String(today.getDate()).padStart(2, '0');
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const year = today.getFullYear();
-    setDateInput(`${day}/${month}/${year}`);
-  }, []);
-
   return (
     <div className="container mx-auto py-6 max-w-6xl">
       <Button 
@@ -135,71 +133,71 @@ const Pembayaran = () => {
         </Alert>
       )}
 
-<Dialog open={showSuccessDialog}>
-    <DialogContent className="sm:max-w-md">
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-2 text-green-600">
-          <CheckCircle2 className="h-6 w-6" />
-          Pembayaran Berhasil!
-        </DialogTitle>
-      </DialogHeader>
-      <div className="space-y-4 py-4 text-black">
-        <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-600">ID Transaksi:</span>
-            <span className="font-medium">{transactionId}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-600">Total:</span>
-            <span className="font-medium">Rp {subtotal.toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-600">Metode:</span>
-            <span className="font-medium">
-              {paymentMethod === 'cash' ? 'Tunai' : 'Transfer Bank'}
-            </span>
-          </div>
-          {paymentMethod === 'cash' && (
-            <>
+      <Dialog open={showSuccessDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-600">
+              <CheckCircle2 className="h-6 w-6" />
+              Pembayaran Berhasil!
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4 text-black">
+            <div className="bg-gray-50 p-4 rounded-lg space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Dibayar:</span>
+                <span className="text-gray-600">ID Transaksi:</span>
+                <span className="font-medium">{transactionId}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Total:</span>
+                <span className="font-medium">Rp {subtotal.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Metode:</span>
                 <span className="font-medium">
-                  Rp {parseInt(cashAmount.replace(/\D/g, '')).toLocaleString()}
+                  {paymentMethod === 'cash' ? 'Tunai' : 'Transfer Bank'}
                 </span>
               </div>
+              {paymentMethod === 'cash' && (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Dibayar:</span>
+                    <span className="font-medium">
+                      Rp {parseInt(cashAmount.replace(/\D/g, '')).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Kembalian:</span>
+                    <span className="font-medium text-green-600">
+                      Rp {change.toLocaleString()}
+                    </span>
+                  </div>
+                </>
+              )}
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Kembalian:</span>
-                <span className="font-medium text-green-600">
-                  Rp {change.toLocaleString()}
-                </span>
+                <span className="text-gray-600">Tanggal:</span>
+                <span className="font-medium">{getCurrentDate()}</span>
               </div>
-            </>
-          )}
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-600">Tanggal:</span>
-            <span className="font-medium">{dateInput}</span>
+            </div>
           </div>
-        </div>
-      </div>
-      <DialogFooter className="flex-col sm:flex-row gap-2">
-        <Button
-          variant="outline"
-          onClick={() => navigate('/penjualan')}
-          className="w-full sm:w-auto"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Kembali
-        </Button>
-        <Button 
-          className="w-full sm:w-auto"
-          onClick={handlePrintReceipt}
-        >
-          <Printer className="mr-2 h-4 w-4" />
-          Cetak Nota
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => navigate('/penjualan')}
+              className="w-full sm:w-auto"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Kembali
+            </Button>
+            <Button 
+              className="w-full sm:w-auto"
+              onClick={handlePrintReceipt}
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              Cetak Nota
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="h-fit shadow-sm">
@@ -256,25 +254,6 @@ const Pembayaran = () => {
           </CardHeader>
           <CardContent className="p-6">
             <div className="space-y-4">
-              <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">
-                    Tanggal Transaksi (DD/MM/YYYY)
-                  </label>
-                  <Input
-                    type="text"
-                    value={dateInput}
-                    onChange={handleDateChange}
-                    placeholder="DD/MM/YYYY"
-                    maxLength="10"
-                    className="bg-white border-gray-200"
-                  />
-                  <p className="text-xs text-gray-500">
-                    Contoh: 01/12/2024
-                  </p>
-                </div>
-              </div>
-
               <div className="grid grid-cols-1 gap-3">
                 {paymentMethods.map((method) => {
                   const Icon = method.icon;

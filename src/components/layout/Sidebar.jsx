@@ -3,20 +3,18 @@ import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { XMarkIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import {
-  HomeIcon,
   CubeIcon,
   ArrowDownOnSquareIcon,
   ShoppingCartIcon,
   WalletIcon,
-  ChartBarIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  HomeIcon
 } from '@heroicons/react/24/outline';
-import { DatabaseIcon } from 'lucide-react';
-import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { addDummyData } from '@/lib/db/dummy';
 
 const navigation = [
+  { name: 'Dashboard', href: '/', icon: HomeIcon }, 
   { name: 'Produk', href: '/produk', icon: CubeIcon },
   { name: 'Penjualan', href: '/penjualan', icon: ShoppingCartIcon },
   { name: 'Riwayat Transaksi', href: '/riwayat-transaksi', icon: CubeIcon },
