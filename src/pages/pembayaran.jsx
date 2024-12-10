@@ -111,9 +111,137 @@ const Pembayaran = () => {
     }
   };
 
-  const handlePrintReceipt = () => {
-    // Implement receipt printing logic here
-    console.log('Printing receipt...');
+  const handlePrintReceipt = async () => {
+    try {
+      const transactionDetails = await transactionService.getTransactionDetails(transactionId);
+      
+      const createReceiptText = () => {
+        const PAPER_WIDTH = 32; // Lebar kertas dalam karakter
+        
+        const rightAlign = (text, length) => {
+          const textStr = String(text);
+          return ' '.repeat(Math.max(0, length - textStr.length)) + textStr;
+        };
+  
+        const createLabelWithDots = (label, value, width = PAPER_WIDTH) => {
+          const valueStr = String(value);
+          const labelSpace = width - valueStr.length - 2;
+          return label + '.'.repeat(Math.max(0, labelSpace - label.length)) + ': ' + valueStr;
+        };
+  
+        // Format tanggal dan waktu
+        const formatDateTime = () => {
+          const d = new Date();
+          const day = String(d.getDate()).padStart(2, '0');
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const year = d.getFullYear();
+          const hours = String(d.getHours()).padStart(2, '0');
+          const minutes = String(d.getMinutes()).padStart(2, '0');
+          return `${day}/${month}/${year} ${hours}:${minutes}`;
+        };
+  
+        let receipt = '';
+        
+        // Reset printer dan set align center
+        receipt += '\x1B\x40'; // Initialize printer
+        receipt += '\x1B\x61\x01'; // Align center
+        
+        // Header
+        receipt += '--------------------------------\n';
+        receipt += '           TOKO ATK             \n';
+        receipt += '       Alamat Toko ATK          \n';
+        receipt += '       Tel: 08123456789         \n';
+        receipt += '--------------------------------\n';
+        
+        // Set align left untuk konten
+        receipt += '\x1B\x61\x00';
+        
+        // Info Transaksi yang lebih lengkap
+        receipt += `Tgl  : ${formatDateTime()}\n`;
+        receipt += `No   : ${transactionId}\n`;
+        receipt += `Bayar: ${paymentMethod === 'cash' ? 'TUNAI' : 'TRANSFER'}\n`;
+        receipt += '--------------------------------\n';
+        
+        // Informasi item yang dibeli
+        let totalQty = 0;
+        let totalItems = transactionDetails.length;
+        
+        transactionDetails.forEach(item => {
+          totalQty += item.quantity;
+          const itemTotal = item.price * item.quantity;
+          const itemTotalStr = itemTotal.toLocaleString();
+          
+          // Format nama item dan kategori
+          let itemName = `${item.name} (${item.kategori || 'Umum'})`;
+          const maxNameLength = PAPER_WIDTH - itemTotalStr.length - 1;
+          
+          if (itemName.length > maxNameLength) {
+            itemName = itemName.substring(0, maxNameLength - 3) + '...';
+          }
+          
+          // Padding nama dan total
+          receipt += `${itemName}${rightAlign(itemTotalStr, PAPER_WIDTH - itemName.length)}\n`;
+          
+          // Qty dan harga satuan
+          const qtyPrice = `  ${item.quantity} x ${item.price.toLocaleString()}`;
+          receipt += qtyPrice + '\n';
+        });
+        
+        receipt += '--------------------------------\n';
+        
+        // Ringkasan item
+        receipt += `Total Item : ${totalItems} (${totalQty} pcs)\n`;
+        
+        // Summary pembayaran
+        receipt += createLabelWithDots('Subtotal', subtotal.toLocaleString()) + '\n';
+        
+        if (paymentMethod === 'cash') {
+          const cashAmountFormatted = parseInt(cashAmount.replace(/\D/g, '')).toLocaleString();
+          receipt += createLabelWithDots('Tunai', cashAmountFormatted) + '\n';
+          receipt += createLabelWithDots('Kembali', change.toLocaleString()) + '\n';
+        } else {
+          receipt += createLabelWithDots('Transfer', subtotal.toLocaleString()) + '\n';
+          receipt += 'Rek BCA: 1234-5678-9012\n';
+          receipt += 'a.n Koperasi ATK\n';
+        }
+        
+        // Footer
+        receipt += '\x1B\x61\x01'; // Set align center
+        receipt += '--------------------------------\n';
+        receipt += 'Simpan struk ini sebagai\n';
+        receipt += 'bukti pembayaran yang sah\n';
+        receipt += '--------------------------------\n';
+        receipt += '          Terima Kasih          \n';
+        receipt += '     Selamat Belanja Kembali    \n';
+        receipt += '--------------------------------\n';
+        
+        // Cut command
+        receipt += '\x1D\x56\x42';
+        
+        return receipt;
+      };
+  
+      const printWithRawBT = (text) => {
+        const isAndroid = /Android/i.test(navigator.userAgent);
+        
+        if (isAndroid) {
+          const S = "#Intent;scheme=rawbt;";
+          const P = "package=ru.a402d.rawbtprinter;end;";
+          const textEncoded = encodeURI(text);
+          window.location.href = "intent:" + textEncoded + S + P;
+        } else {
+          console.log('Printing is only available on Android devices');
+          alert('Printing is only available on Android devices');
+        }
+      };
+  
+      const receiptText = createReceiptText();
+      printWithRawBT(receiptText);
+      
+    } catch (error) {
+      console.error('Print error:', error);
+      alert('Failed to print receipt: ' + error.message);
+    }
   };
 
   return (
