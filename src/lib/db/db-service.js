@@ -109,6 +109,22 @@ class DBService {
     });
   }
 
+  async getFromIndex(storeName, indexName, value) {
+    const db = await this.ensureDBConnection();
+    return new Promise((resolve, reject) => {
+      try {
+        const transaction = db.transaction(storeName, 'readonly');
+        const store = transaction.objectStore(storeName);
+        const index = store.index(indexName);
+        const request = index.get(value);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(`Error getting single item from index ${indexName}`);
+      } catch (error) {
+        reject(`Error accessing index ${indexName}: ${error.message}`);
+      }
+    });
+  }
+  
   async get(storeName, id) {
     const db = await this.ensureDBConnection();
     return new Promise((resolve, reject) => {

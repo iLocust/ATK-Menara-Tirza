@@ -1,9 +1,51 @@
+/* eslint-disable no-useless-catch */
 import { dbService } from './db-service';
 import { cashFlowService } from './CashFlowService';
 
 class StockService {
   async getAllStokMasuk() {
     return dbService.getAll('stokMasuk');
+  }
+
+  generateBarcode() {
+    // Generate random 13 digit EAN-13 barcode
+    const prefix = '200'; // Custom prefix for internal products
+    const random = Math.floor(Math.random() * 1000000000).toString().padStart(9, '0');
+    const digits = prefix + random;
+    
+    // Calculate check digit
+    let sum = 0;
+    for (let i = 0; i < 12; i++) {
+      sum += parseInt(digits[i]) * (i % 2 === 0 ? 1 : 3);
+    }
+    const checkDigit = (10 - (sum % 10)) % 10;
+    
+    return digits + checkDigit;
+  }
+
+  async getProductByBarcode(barcode) {
+    try {
+      return await dbService.getFromIndex('products', 'barcode', barcode);
+    } catch (error) {
+      console.error('Error getting product by barcode:', error);
+      throw error;
+    }
+  }
+
+  async validateBarcode(barcode) {
+    if (!/^\d{13}$/.test(barcode)) {
+      throw new Error('Barcode harus 13 digit angka');
+    }
+
+    try {
+      const existingProduct = await this.getProductByBarcode(barcode);
+      if (existingProduct) {
+        throw new Error('Barcode sudah digunakan');
+      }
+      return true;
+    } catch (error) {
+      throw error;
+    }
   }
  
   async addStokMasuk(item) {
@@ -24,6 +66,11 @@ class StockService {
       };
  
       try {
+        // Generate barcode if not provided
+        if (!item.barcode) {
+          item.barcode = this.generateBarcode();
+        }
+
         const stokMasukStore = transaction.objectStore('stokMasuk');
         const stokRequest = stokMasukStore.add({
           ...item,
@@ -41,7 +88,8 @@ class StockService {
               kategori: item.kategori,
               price: item.hargaJual,
               stock: existingProduct ? existingProduct.stock + item.jumlah : item.jumlah,
-              latestBatch: item.batchNumber
+              latestBatch: item.batchNumber,
+              barcode: item.barcode
             };
  
             if (existingProduct) {
@@ -66,7 +114,8 @@ class StockService {
                 productName: item.produk,
                 quantity: item.jumlah,
                 pricePerUnit: item.hargaBeli,
-                batchNumber: item.batchNumber
+                batchNumber: item.batchNumber,
+                barcode: item.barcode
               }
             });
           };
@@ -108,7 +157,8 @@ class StockService {
               name: item.produk,
               kategori: item.kategori,
               price: item.hargaJual,
-              stock: existingProduct ? existingProduct.stock + item.jumlah : item.jumlah
+              stock: existingProduct ? existingProduct.stock + item.jumlah : item.jumlah,
+              barcode: item.barcode
             };
  
             if (existingProduct) {
@@ -133,7 +183,8 @@ class StockService {
                 details: {
                   productName: item.produk,
                   quantity: item.restockAmount,
-                  pricePerUnit: item.hargaBeli
+                  pricePerUnit: item.hargaBeli,
+                  barcode: item.barcode
                 }
               });
             }
@@ -200,7 +251,8 @@ class StockService {
               remainingQuantity: item.sisaStok,
               originalQuantity: item.jumlah,
               pricePerUnit: item.hargaBeli,
-              originalPurchaseDate: item.tanggalMasuk
+              originalPurchaseDate: item.tanggalMasuk,
+              barcode: item.barcode
             }
           });
         };
@@ -246,6 +298,46 @@ class StockService {
     const products = await dbService.getAll('products');
     return products.filter(product => product.stock > 0 && product.stock <= threshold);
   }
- }
+
+  async updateBarcodeForProduct(productId, newBarcode) {
+    const transaction = dbService.db.transaction(
+      ['stokMasuk', 'products'],
+      'readwrite'
+    );
+
+    return new Promise((resolve, reject) => {
+      transaction.onerror = () => reject('Transaction failed');
+      transaction.oncomplete = () => resolve('Transaction completed');
+
+      try {
+        // Update in products store
+        const productsStore = transaction.objectStore('products');
+        const getProductRequest = productsStore.get(productId);
+
+        getProductRequest.onsuccess = () => {
+          const product = getProductRequest.result;
+          if (product) {
+            product.barcode = newBarcode;
+            productsStore.put(product);
+
+            // Update in stokMasuk store
+            const stokMasukStore = transaction.objectStore('stokMasuk');
+            const getStokRequest = stokMasukStore.get(productId);
+
+            getStokRequest.onsuccess = () => {
+              const stok = getStokRequest.result;
+              if (stok) {
+                stok.barcode = newBarcode;
+                stokMasukStore.put(stok);
+              }
+            };
+          }
+        };
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+}
  
- export const stockService = new StockService();
+export const stockService = new StockService();

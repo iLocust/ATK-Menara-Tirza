@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Card, 
   CardContent, 
@@ -8,9 +8,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useNavigate } from 'react-router-dom';
-import { Search, Loader2, AlertCircle } from 'lucide-react';
+import { Search, Loader2, AlertCircle, Barcode } from 'lucide-react';
 import { stockService } from '@/lib/db/StockService';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import JsBarcode from 'jsbarcode';
 
 const Penjualan = () => {
   const navigate = useNavigate();
@@ -22,6 +25,14 @@ const Penjualan = () => {
   const [cartErrors, setCartErrors] = useState({}); // Track errors per product
   const [globalError, setGlobalError] = useState(null); // For non-product specific errors
   const [filteredProducts, setFilteredProducts] = useState([]);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [barcodeInput, setBarcodeInput] = useState('');
+  const barcodeInputRef = useRef(null);
+  const [scanError, setScanError] = useState(null);
+  const [scanSuccess, setScanSuccess] = useState(null);
+
+  const BARCODE_LENGTH = 13;
+  const SCAN_TIMEOUT = 500; // ms to wait before processing barcode
 
   useEffect(() => {
     loadProducts();
@@ -30,6 +41,12 @@ const Penjualan = () => {
   useEffect(() => {
     filterProducts();
   }, [products, searchTerm, selectedCategory]);
+
+  useEffect(() => {
+    if (isScannerOpen && barcodeInputRef.current) {
+      barcodeInputRef.current.focus();
+    }
+  }, [isScannerOpen]);
 
   const loadProducts = async () => {
     try {
@@ -43,7 +60,8 @@ const Penjualan = () => {
         price: item.hargaJual,
         stock: item.sisaStok,
         kategori: item.kategori,
-        buyPrice: item.hargaBeli
+        buyPrice: item.hargaBeli,
+        barcode: item.barcode
       }));
       
       setProducts(transformedProducts);
@@ -62,6 +80,37 @@ const Penjualan = () => {
       (selectedCategory === 'all' || product.kategori === selectedCategory)
     );
     setFilteredProducts(filtered);
+  };
+
+  const handleBarcodeSubmit = async () => {
+    try {
+      setScanError(null);
+      if (barcodeInput.length !== BARCODE_LENGTH) {
+        setScanError('Barcode harus 13 digit');
+        return;
+      }
+
+      const product = products.find(p => p.barcode === barcodeInput);
+      if (!product) {
+        setScanError('Produk tidak ditemukan');
+        return;
+      }
+
+      await addToCart(product);
+      setScanSuccess(`${product.name} ditambahkan ke keranjang`);
+      setBarcodeInput('');
+      setTimeout(() => setScanSuccess(null), 2000);
+      
+    } catch (error) {
+      setScanError(error.message);
+    }
+  };
+
+  const handleBarcodeKeyPress = async (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      await handleBarcodeSubmit();
+    }
   };
 
   const addToCart = async (product) => {
@@ -105,9 +154,15 @@ const Penjualan = () => {
           name: currentProduct.produk, 
           price: currentProduct.hargaJual,
           quantity: 1,
-          stock: currentProduct.sisaStok
+          stock: currentProduct.sisaStok,
+          barcode: currentProduct.barcode
         }]);
       }
+
+      // Play success sound
+      const audio = new Audio('/sounds/beep.mp3');
+      audio.play().catch(e => console.log('Audio play failed:', e));
+
     } catch (err) {
       setCartErrors({
         ...cartErrors,
@@ -221,14 +276,24 @@ const Penjualan = () => {
           <CardHeader className="border-b">
             <CardTitle>Daftar Produk</CardTitle>
             <div className="space-y-4">
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
-                <Input
-                  placeholder="Cari produk..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8"
-                />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                  <Input
+                    placeholder="Cari produk..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2"
+                  onClick={() => setIsScannerOpen(true)}
+                >
+                  <Barcode className="h-4 w-4" />
+                  Scan Barcode
+                </Button>
               </div>
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                 <SelectTrigger>
@@ -250,20 +315,40 @@ const Penjualan = () => {
                   className="hover:bg-gray-50 transition-colors"
                 >
                   <CardContent className="pt-4 flex justify-between items-center">
-                    <div className="space-y-1">
-                      <h3 className="font-medium text-lg">{product.name}</h3>
-                      <div className="flex items-center space-x-4">
-                        <span className={`text-sm ${
-                          product.stock === 0 ? 'text-red-600 font-semibold' :
-                          product.stock < 5 ? 'text-red-600' : 'text-gray-600'
-                        }`}>
-                          Stok: {product.stock}
-                        </span>
-                        <span className="text-sm font-medium text-green-600">
-                          Rp {product.price?.toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
+                  <div className="space-y-1">
+  <h3 className="font-medium text-lg">{product.name}</h3>
+  <div className="flex items-center space-x-4">
+    <span className={`text-sm ${
+      product.stock === 0 ? 'text-red-600 font-semibold' :
+      product.stock < 5 ? 'text-red-600' : 'text-gray-600'
+    }`}>
+      Stok: {product.stock}
+    </span>
+    <span className="text-sm font-medium text-green-600">
+      Rp {product.price?.toLocaleString()}
+    </span>
+  </div>
+  {product.barcode && (
+    <div className="mt-2">
+      <svg ref={(ref) => {
+        if (ref) {
+          try {
+            JsBarcode(ref, product.barcode, {
+              format: "EAN13",
+              width: 1.5,
+              height: 30,
+              displayValue: true,
+              fontSize: 10,
+              margin: 0
+            });
+          } catch (err) {
+            console.error('Error generating barcode:', err);
+          }
+        }
+      }} />
+    </div>
+  )}
+</div>
                     <Button 
                       variant="ghost" 
                       size="sm"
@@ -301,15 +386,35 @@ const Penjualan = () => {
               {cart.map((item) => (
                 <div key={item.id} className="space-y-2">
                   <div className="flex items-center justify-between border-b pb-4">
-                    <div>
-                      <h3 className="font-medium">{item.name}</h3>
-                      <p className="text-sm text-green-600">
-                        Rp {item.price.toLocaleString()}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Subtotal: Rp {(item.price * item.quantity).toLocaleString()}
-                      </p>
-                    </div>
+                  <div>
+  <h3 className="font-medium">{item.name}</h3>
+  <p className="text-sm text-green-600">
+    Rp {item.price.toLocaleString()}
+  </p>
+  <p className="text-xs text-gray-500">
+    Subtotal: Rp {(item.price * item.quantity).toLocaleString()}
+  </p>
+  {item.barcode && (
+    <div className="mt-1">
+      <svg ref={(ref) => {
+        if (ref) {
+          try {
+            JsBarcode(ref, item.barcode, {
+              format: "EAN13",
+              width: 1,
+              height: 25,
+              displayValue: true,
+              fontSize: 8,
+              margin: 0
+            });
+          } catch (err) {
+            console.error('Error generating barcode:', err);
+          }
+        }
+      }} />
+    </div>
+  )}
+</div>
                     <div className="flex items-center gap-2">
                       <Button 
                         variant="outline" 
@@ -365,6 +470,61 @@ const Penjualan = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Barcode Scanner Dialog */}
+      <Dialog open={isScannerOpen} onOpenChange={setIsScannerOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Scan Barcode</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 px-6">
+            <div className="space-y-4">
+              {scanError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{scanError}</AlertDescription>
+                </Alert>
+              )}
+              
+              {scanSuccess && (
+                <Alert className="bg-green-50 text-green-700 border-green-200">
+                  <AlertDescription>{scanSuccess}</AlertDescription>
+                </Alert>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Masukkan atau scan barcode
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    ref={barcodeInputRef}
+                    type="text"
+                    value={barcodeInput}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 13);
+                      setBarcodeInput(value);
+                      setScanError(null);
+                    }}
+                    onKeyPress={handleBarcodeKeyPress}
+                    placeholder="Scan atau masukkan 13 digit barcode"
+                    className="font-mono text-lg"
+                    autoComplete="off"
+                  />
+                  <Button
+                    onClick={handleBarcodeSubmit}
+                    disabled={barcodeInput.length !== BARCODE_LENGTH}
+                  >
+                    Tambah
+                  </Button>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Arahkan scanner ke barcode atau masukkan kode secara manual
+                </p>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {globalError && (
         <div className="fixed bottom-4 right-4 w-80">

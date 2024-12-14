@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { PlusIcon, PencilIcon, TrashIcon, Plus } from 'lucide-react';
+import { PlusIcon, PencilIcon, TrashIcon, Plus, RotateCw } from 'lucide-react';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { stockService } from '@/lib/db/StockService';
 import { cashFlowService } from '@/lib/db/CashFlowService';
+import JsBarcode from 'jsbarcode';
 
 const StokMasuk = () => {
   const [incomingStock, setIncomingStock] = useState([]);
@@ -40,6 +41,24 @@ const StokMasuk = () => {
     margin: ''
   });
 
+  useEffect(() => {
+    loadStokMasuk();
+  }, []);
+
+  const loadStokMasuk = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await stockService.getAllStokMasuk();
+      setIncomingStock(data);
+    } catch (err) {
+      setError('Gagal memuat data: ' + err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  
   const validateForm = () => {
     const errors = {};
     let isValid = true;
@@ -74,7 +93,6 @@ const StokMasuk = () => {
       isValid = false;
     }
 
-    // Add validation for selling price
     const hargaBeli = parseInt(formData.hargaBeli);
     const hargaJual = parseInt(formData.hargaJual);
 
@@ -87,40 +105,6 @@ const StokMasuk = () => {
     return isValid;
   };
 
-  useEffect(() => {
-    loadStokMasuk();
-  }, []);
-
-  const loadStokMasuk = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await stockService.getAllStokMasuk();
-      setIncomingStock(data);
-    } catch (err) {
-      setError('Gagal memuat data: ' + err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSort = (key) => {
-    let direction = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ key, direction });
-  };
-
-  const getSortedData = () => {
-    if (!sortConfig.key) return incomingStock;
-    return [...incomingStock].sort((a, b) => {
-      if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
-      if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
-      return 0;
-    });
-  };
-
   const handleInputChange = (field, value) => {
     setFormData(prev => {
       const newData = { ...prev, [field]: value };
@@ -130,11 +114,10 @@ const StokMasuk = () => {
         const hargaJual = parseFloat(field === 'hargaJual' ? value : prev.hargaJual) || 0;
 
         if (hargaBeli > 0 && hargaJual > 0) {
-          // Only calculate margin if selling price is higher than purchase price
           if (hargaJual > hargaBeli) {
             newData.margin = ((hargaJual - hargaBeli) / hargaBeli * 100).toFixed(2);
           } else {
-            newData.margin = ''; // Clear margin if invalid price relationship
+            newData.margin = '';
           }
         }
       }
@@ -144,7 +127,6 @@ const StokMasuk = () => {
         const marginValue = parseFloat(value) || 0;
         if (hargaBeli > 0 && marginValue > 0) {
           const calculatedHargaJual = (hargaBeli * (1 + marginValue / 100)).toFixed(0);
-          // Only update hargaJual if it results in a valid price relationship
           if (parseInt(calculatedHargaJual) > hargaBeli) {
             newData.hargaJual = calculatedHargaJual;
           }
@@ -163,7 +145,6 @@ const StokMasuk = () => {
     try {
       setError(null);
 
-      // Validate form before submission
       if (!validateForm()) {
         return;
       }
@@ -181,10 +162,11 @@ const StokMasuk = () => {
         kategori: formData.kategori,
         jumlah: parseInt(formData.jumlah),
         hargaBeli: parseInt(formData.hargaBeli),
-        hargaJual: parseInt(formData.hargaJual) || null,
-        margin: parseFloat(formData.margin) || null,
+        hargaJual: parseInt(formData.hargaJual),
+        margin: parseFloat(formData.margin),
         tanggalMasuk: new Date().toISOString().split('T')[0],
-        sisaStok: parseInt(formData.jumlah)
+        sisaStok: parseInt(formData.jumlah),
+        barcode: stockService.generateBarcode()
       };
 
       await stockService.addStokMasuk(newStock);
@@ -198,6 +180,7 @@ const StokMasuk = () => {
         hargaJual: '',
         margin: ''
       });
+      
       setFormErrors({});
       setIsDialogOpen(false);
 
@@ -208,7 +191,6 @@ const StokMasuk = () => {
       setError('Gagal menambah data: ' + err.message);
     }
   };
-
 
   const handleRestock = async () => {
     try {
@@ -228,7 +210,7 @@ const StokMasuk = () => {
         jumlah: selectedProduct.jumlah + restockAmount,
         sisaStok: selectedProduct.sisaStok + restockAmount,
         tanggalMasuk: new Date().toISOString().split('T')[0],
-        restockAmount: restockAmount // Add this field to track restock amount
+        restockAmount: restockAmount
       };
 
       if (parseInt(formData.hargaBeli) !== selectedProduct.hargaBeli) {
@@ -250,7 +232,9 @@ const StokMasuk = () => {
         jumlah: '',
         hargaBeli: '',
         hargaJual: '',
-        margin: ''
+        margin: '',
+        barcode: '',
+        generateBarcode: true
       });
 
       setSuccessMessage('Stok berhasil diperbarui');
@@ -259,20 +243,6 @@ const StokMasuk = () => {
     } catch (err) {
       setError('Gagal memperbarui stok: ' + err.message);
       console.error(err);
-    }
-  };
-
-  const handleDelete = async () => {
-    try {
-      setError(null);
-      await stockService.deleteStokMasuk(selectedProduct.id);
-      await loadStokMasuk();
-      setIsDeleteDialogOpen(false);
-      setSelectedProduct(null);
-      setSuccessMessage('Stok berhasil dihapus dan dana telah direfund');
-      setTimeout(() => setSuccessMessage(null), 3000);
-    } catch (err) {
-      setError('Gagal menghapus data: ' + err.message);
     }
   };
 
@@ -294,6 +264,20 @@ const StokMasuk = () => {
     }
   };
 
+  const handleDelete = async () => {
+    try {
+      setError(null);
+      await stockService.deleteStokMasuk(selectedProduct.id);
+      await loadStokMasuk();
+      setIsDeleteDialogOpen(false);
+      setSelectedProduct(null);
+      setSuccessMessage('Stok berhasil dihapus dan dana telah direfund');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Gagal menghapus data: ' + err.message);
+    }
+  };
+
   const openRestockDialog = (product) => {
     setSelectedProduct(product);
     setFormData({
@@ -302,7 +286,9 @@ const StokMasuk = () => {
       jumlah: '',
       hargaBeli: product.hargaBeli,
       hargaJual: product.hargaJual,
-      margin: product.margin
+      margin: product.margin,
+      barcode: product.barcode,
+      generateBarcode: false
     });
     setIsRestockDialogOpen(true);
   };
@@ -313,7 +299,9 @@ const StokMasuk = () => {
       ...formData,
       hargaBeli: product.hargaBeli,
       hargaJual: product.hargaJual,
-      margin: product.margin
+      margin: product.margin,
+      barcode: product.barcode,
+      generateBarcode: false
     });
     setIsUpdatePriceDialogOpen(true);
   };
@@ -321,6 +309,24 @@ const StokMasuk = () => {
   const openDeleteDialog = (product) => {
     setSelectedProduct(product);
     setIsDeleteDialogOpen(true);
+  };
+
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortedData = () => {
+    if (!sortConfig.key) return incomingStock;
+    
+    return [...incomingStock].sort((a, b) => {
+      if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
   };
 
   if (isLoading) {
@@ -334,6 +340,7 @@ const StokMasuk = () => {
   }
 
   const sortedStock = getSortedData();
+
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -347,53 +354,46 @@ const StokMasuk = () => {
         </Alert>
       )}
 
-      {/* {error && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )} */}
-
       <div className="mb-6 flex justify-between items-center">
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogTrigger asChild>
-          <Button className="flex items-center gap-2">
-            <PlusIcon className="h-5 w-5" />
-            Tambah Stok Masuk
-          </Button>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Tambah Stok Masuk</DialogTitle>
-          </DialogHeader>
-          
-          <div className="grid gap-4 px-6 py-4">
-            {error && (
-              <Alert variant="destructive" className="mx-0">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            <div className="space-y-1.5">
-              <label className="text-sm text-gray-600 font-medium">Kategori<span className="text-red-500">*</span></label>
-              <Select
-                value={formData.kategori}
-                onValueChange={(value) => {
-                  handleInputChange('kategori', value);
-                  setFormErrors(prev => ({ ...prev, kategori: '' }));
-                }}
-              >
-                <SelectTrigger className={formErrors.kategori ? 'border-red-500' : ''}>
-                  <SelectValue placeholder="Pilih kategori" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ATK">ATK</SelectItem>
-                  <SelectItem value="Seragam">Seragam</SelectItem>
-                </SelectContent>
-              </Select>
-              {formErrors.kategori && (
-                <p className="text-xs text-red-500 mt-1">{formErrors.kategori}</p>
+          <DialogTrigger asChild>
+            <Button className="flex items-center gap-2">
+              <PlusIcon className="h-5 w-5" />
+              Tambah Stok Masuk
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Tambah Stok Masuk</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 px-6 py-4">
+              {error && (
+                <Alert variant="destructive" className="mx-0">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
               )}
-            </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm text-gray-600 font-medium">Kategori<span className="text-red-500">*</span></label>
+                <Select
+                  value={formData.kategori}
+                  onValueChange={(value) => {
+                    handleInputChange('kategori', value);
+                    setFormErrors(prev => ({ ...prev, kategori: '' }));
+                  }}
+                >
+                  <SelectTrigger className={formErrors.kategori ? 'border-red-500' : ''}>
+                    <SelectValue placeholder="Pilih kategori" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ATK">ATK</SelectItem>
+                    <SelectItem value="Seragam">Seragam</SelectItem>
+                  </SelectContent>
+                </Select>
+                {formErrors.kategori && (
+                  <p className="text-xs text-red-500 mt-1">{formErrors.kategori}</p>
+                )}
+              </div>
 
               <div className="space-y-1.5">
                 <label className="text-sm text-gray-600 font-medium">Produk<span className="text-red-500">*</span></label>
@@ -446,7 +446,6 @@ const StokMasuk = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-
                 <div className="space-y-1.5">
                   <label className="text-sm text-gray-600 font-medium">Harga Jual<span className="text-red-500">*</span></label>
                   <Input
@@ -479,17 +478,17 @@ const StokMasuk = () => {
                     <p className="text-xs text-red-500 mt-1">{formErrors.margin}</p>
                   )}
                 </div>
-
               </div>
             </div>
+
             <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setIsDialogOpen(false);
-              setFormErrors({});
-              setError(null); 
-            }}>Batal</Button>
-            <Button onClick={handleSubmit}>Simpan</Button>
-          </DialogFooter>
+              <Button variant="outline" onClick={() => {
+                setIsDialogOpen(false);
+                setFormErrors({});
+                setError(null);
+              }}>Batal</Button>
+              <Button onClick={handleSubmit}>Simpan</Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 
@@ -511,7 +510,7 @@ const StokMasuk = () => {
             Klik ikon pensil untuk mengatur harga jual
           </p>
         </CardHeader>
-        <CardContent >
+        <CardContent>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -521,6 +520,7 @@ const StokMasuk = () => {
                   <TableHead className="font-medium text-gray-900 text-sm py-2">Jumlah</TableHead>
                   <TableHead className="font-medium text-gray-900 text-sm py-2">Harga Beli</TableHead>
                   <TableHead className="font-medium text-gray-900 text-sm py-2">Harga Jual</TableHead>
+                  <TableHead className="font-medium text-gray-900 text-sm py-2">Barcode</TableHead>
                   <TableHead className="font-medium text-center text-gray-900 text-sm py-2">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
@@ -540,9 +540,29 @@ const StokMasuk = () => {
                         </Badge>
                       )}
                     </TableCell>
-                    {/* <TableCell className="text-gray-900">
-                      {item.margin ? `${item.margin}%` : '-'}
-                    </TableCell> */}
+                    
+<TableCell className="text-gray-900 text-sm py-1.5">
+  {item.barcode ? (
+    <div className="flex flex-col items-start gap-1">
+      <svg ref={(ref) => {
+        if (ref) {
+          try {
+            JsBarcode(ref, item.barcode, {
+              format: "EAN13",
+              width: 1.5,
+              height: 40,
+              displayValue: true,
+              fontSize: 12,
+              margin: 0
+            });
+          } catch (err) {
+            console.error('Error generating barcode:', err);
+          }
+        }
+      }} />
+    </div>
+  ) : '-'}
+</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
                         <Button
@@ -576,7 +596,6 @@ const StokMasuk = () => {
         </CardContent>
       </Card>
 
-
       {/* Restock Dialog */}
       <Dialog open={isRestockDialogOpen} onOpenChange={setIsRestockDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto top-[32vh]">
@@ -593,6 +612,7 @@ const StokMasuk = () => {
                   <p className="font-medium text-black">Harga Beli: Rp {selectedProduct.hargaBeli.toLocaleString()}</p>
                   <p className="font-medium text-black">Harga Jual: Rp {selectedProduct.hargaJual.toLocaleString()}</p>
                   <p className="font-medium text-black">Margin: {selectedProduct.margin}%</p>
+                  <p className="font-medium text-black">Barcode: {selectedProduct.barcode}</p>
                 </div>
               </div>
 
@@ -644,7 +664,8 @@ const StokMasuk = () => {
       </Dialog>
 
       {/* Update Price Dialog */}
-      <Dialog open={isUpdatePriceDialogOpen} onOpenChange={setIsUpdatePriceDialogOpen}>
+{/* Update Price Dialog */}
+<Dialog open={isUpdatePriceDialogOpen} onOpenChange={setIsUpdatePriceDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Update Harga Jual</DialogTitle>
@@ -656,6 +677,9 @@ const StokMasuk = () => {
                 <h3 className="font-medium text-black">{selectedProduct.produk}</h3>
                 <p className="text-sm text-gray-500">
                   Harga Beli: Rp {selectedProduct.hargaBeli.toLocaleString()}
+                </p>
+                <p className="text-sm text-gray-500">
+                  Barcode: {selectedProduct.barcode}
                 </p>
               </div>
 
@@ -708,6 +732,13 @@ const StokMasuk = () => {
                 Tindakan ini tidak dapat dibatalkan.
               </AlertDescription>
             </Alert>
+            {selectedProduct && (
+              <div className="mt-4 text-sm text-gray-500">
+                <p>Barcode: {selectedProduct.barcode}</p>
+                <p>Sisa Stok: {selectedProduct.sisaStok} unit</p>
+                <p>Total Refund: Rp {(selectedProduct.hargaBeli * selectedProduct.sisaStok).toLocaleString()}</p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
