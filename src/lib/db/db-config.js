@@ -1,6 +1,6 @@
 export const DB_CONFIG = {
   name: 'KoperasiDB',
-  version: 6, // Increment version untuk trigger update schema
+  version: 7, // Increment version untuk trigger update schema
   stores: {
     stokMasuk: {
       name: 'stokMasuk',
@@ -10,7 +10,7 @@ export const DB_CONFIG = {
         { name: 'tanggalMasuk', keyPath: 'tanggalMasuk', options: { unique: false } },
         { name: 'kategori', keyPath: 'kategori', options: { unique: false } },
         { name: 'produk', keyPath: 'produk', options: { unique: false } },
-        { name: 'barcode', keyPath: 'barcode', options: { unique: true } }
+        { name: 'barcode', keyPath: 'barcode', options: { unique: false } } // Changed to false
       ]
     },
     products: {
@@ -22,7 +22,7 @@ export const DB_CONFIG = {
         { name: 'price', keyPath: 'price', options: { unique: false } },
         { name: 'stock', keyPath: 'stock', options: { unique: false } },
         { name: 'kategori', keyPath: 'kategori', options: { unique: false } },
-        { name: 'barcode', keyPath: 'barcode', options: { unique: true } }
+        { name: 'barcode', keyPath: 'barcode', options: { unique: false } } // Changed to false
       ]
     },
     // ... rest of the stores remain unchanged

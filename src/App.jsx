@@ -2,12 +2,12 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import Dashboard from '@/pages/Dashboard';
 import Products from '@/pages/Produk';
-import StokMasuk from '@/pages/StokMasuk';
-import Penjualan from '@/pages/index';
-import Pembayaran from '@/pages/pembayaran';
-import RiwayatTransaksi from '@/pages/riwayat-transaksi';
-import CashBalance from '@/pages/Cash';
-import SalesReport from '@/pages/SalesReport';
+import StokMasuk from '@/pages/StokMasuk/StokMasuk';
+import Penjualan from '@/pages/Sales/index';
+import Pembayaran from '@/pages/Sales/pembayaran';
+import RiwayatTransaksi from '@/pages/Transactions/riwayat-transaksi';
+import CashBalance from '@/pages/Transactions/Cash';
+import SalesReport from '@/pages/Transactions/SalesReport';
 
 function App() {
   return (

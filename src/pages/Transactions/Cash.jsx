@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/tabs";
 import { cashFlowService } from '@/lib/db/CashFlowService';
 import { exportCashFlow } from './excelUtils';
-import { dbService } from '../lib/db/db-service';
+import { dbService } from '../../lib/db/db-service';
 
 const UnifiedCashManagement = () => {
   const [balance, setBalance] = useState({ cash: 0, transfer: 0 });
