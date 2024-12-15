@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { PlusIcon, PencilIcon, TrashIcon, Plus, RotateCw } from 'lucide-react';
+import { PlusIcon, PencilIcon, TrashIcon, Plus, RotateCw, Printer } from 'lucide-react';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,53 @@ const StokMasuk = () => {
     }
   };
 
+  const handlePrintBarcode = (barcode) => {
+    try {
+      const createBarcodeText = () => {
+        let output = '';
+        
+        // Reset printer
+        output += '\x1B\x40';
+        
+        // Center align
+        output += '\x1B\x61\x01';
+        
+        // Set large size for barcode (GS w n) - width multiplier
+        output += '\x1D\x77\x03';  // Width: 3 (larger)
+        output += '\x1D\x68\x64';  // Height: 100 dots
+        
+        // Add barcode command for EAN13
+        output += '\x1D\x6B\x02';  // GS k 2 - EAN13 format
+        output += `${barcode}\x00`; // Barcode data with null terminator
+        
+        // Cut paper
+        output += '\x1D\x56\x42\x00';
+        
+        return output;
+      };
+
+      const printWithRawBT = (text) => {
+        const isAndroid = /Android/i.test(navigator.userAgent);
+        
+        if (isAndroid) {
+          const S = "#Intent;scheme=rawbt;";
+          const P = "package=ru.a402d.rawbtprinter;end;";
+          const textEncoded = encodeURI(text);
+          window.location.href = "intent:" + textEncoded + S + P;
+        } else {
+          console.log('Printing is only available on Android devices');
+          alert('Printing is only available on Android devices');
+        }
+      };
+
+      const barcodeText = createBarcodeText();
+      printWithRawBT(barcodeText);
+      
+    } catch (error) {
+      console.error('Print error:', error);
+      alert('Failed to print barcode: ' + error.message);
+    }
+  };
   
   const validateForm = () => {
     const errors = {};
@@ -507,7 +554,7 @@ const StokMasuk = () => {
         <CardHeader className="border-b">
           <CardTitle className="text-lg">Daftar Stok Masuk</CardTitle>
           <p className="text-xs text-gray-500">
-            Klik ikon pensil untuk mengatur harga jual
+            Klik ikon printer untuk mencetak barcode
           </p>
         </CardHeader>
         <CardContent>
@@ -540,29 +587,37 @@ const StokMasuk = () => {
                         </Badge>
                       )}
                     </TableCell>
-                    
-<TableCell className="text-gray-900 text-sm py-1.5">
-  {item.barcode ? (
-    <div className="flex flex-col items-start gap-1">
-      <svg ref={(ref) => {
-        if (ref) {
-          try {
-            JsBarcode(ref, item.barcode, {
-              format: "EAN13",
-              width: 1.5,
-              height: 40,
-              displayValue: true,
-              fontSize: 12,
-              margin: 0
-            });
-          } catch (err) {
-            console.error('Error generating barcode:', err);
-          }
-        }
-      }} />
-    </div>
-  ) : '-'}
-</TableCell>
+                    <TableCell className="text-gray-900 text-sm py-1.5">
+                      {item.barcode ? (
+                        <div className="flex flex-col items-start gap-1">
+                          <svg ref={(ref) => {
+                            if (ref) {
+                              try {
+                                JsBarcode(ref, item.barcode, {
+                                  format: "EAN13",
+                                  width: 2, // Increased width
+                                  height: 50, // Increased height
+                                  displayValue: true,
+                                  fontSize: 14, // Increased font size
+                                  margin: 0
+                                });
+                              } catch (err) {
+                                console.error('Error generating barcode:', err);
+                              }
+                            }
+                          }} />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            onClick={() => handlePrintBarcode(item.barcode)}
+                          >
+                            <Printer className="h-3 w-3 mr-1" />
+                            Print Barcode
+                          </Button>
+                        </div>
+                      ) : '-'}
+                    </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
                         <Button
