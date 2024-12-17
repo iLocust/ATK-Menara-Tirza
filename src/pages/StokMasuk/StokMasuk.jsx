@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-// import { PlusIcon, PencilIcon, TrashIcon, Plus, RotateCw, Printer } from 'lucide-react';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,13 +18,21 @@ const StokMasuk = () => {
   const [isRestockDialogOpen, setIsRestockDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  
+  // New state for barcode handling
+  const [useExistingBarcode, setUseExistingBarcode] = useState(false);
+  const [barcode, setBarcode] = useState('');
+  const [duplicateProduct, setDuplicateProduct] = useState(null);
+  const [forceContinue, setForceContinue] = useState(false);
+  
   const [formData, setFormData] = useState({
     produk: '',
     kategori: '',
     jumlah: '',
     hargaBeli: '',
     hargaJual: '',
-    margin: ''
+    margin: '',
+    barcode: ''
   });
 
   const [formErrors, setFormErrors] = useState({
@@ -34,7 +41,8 @@ const StokMasuk = () => {
     jumlah: '',
     hargaBeli: '',
     hargaJual: '',
-    margin: ''
+    margin: '',
+    barcode: ''
   });
 
   useEffect(() => {
@@ -52,6 +60,40 @@ const StokMasuk = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleBarcodeChange = async (value) => {
+    setBarcode(value);
+    setFormData(prev => ({ ...prev, barcode: value }));
+    setForceContinue(false);
+
+    if (value.length >= 8 && value.length <= 13) {
+      try {
+        const products = await stockService.getAllProductsByBarcode(value);
+        if (products.length > 0) {
+          setDuplicateProduct(products[0]);
+          setError('Barcode sudah digunakan oleh produk lain');
+        } else {
+          setDuplicateProduct(null);
+          setError(null);
+        }
+      } catch (error) {
+        console.error('Error checking barcode:', error);
+      }
+    } else {
+      setDuplicateProduct(null);
+      if (value && (value.length < 8 || value.length > 13)) {
+        setError('Barcode harus berisi 8-13 digit angka');
+      } else {
+        setError(null);
+      }
+    }
+  };
+
+  const handleBarcodeConfirm = () => {
+    setForceContinue(true);
+    setDuplicateProduct(null);
+    setError(null);
   };
 
   const handlePrintBarcode = (barcode) => {
@@ -122,6 +164,22 @@ const StokMasuk = () => {
       isValid = false;
     }
 
+    if (useExistingBarcode) {
+      if (!formData.barcode) {
+        errors.barcode = 'Barcode harus diisi';
+        isValid = false;
+      }
+      if (!/^\d{8,13}$/.test(formData.barcode)) {
+        errors.barcode = 'Barcode harus berisi 8-13 digit angka';
+        isValid = false;
+      }
+
+      if (duplicateProduct && !forceContinue) {
+        errors.barcode = 'Barcode sudah digunakan. Silahkan konfirmasi penggunaan barcode yang sama atau gunakan barcode lain.';
+        isValid = false;
+      }
+    }
+
     const hargaBeli = parseInt(formData.hargaBeli);
     const hargaJual = parseInt(formData.hargaJual);
 
@@ -173,19 +231,20 @@ const StokMasuk = () => {
   const handleSubmit = async () => {
     try {
       setError(null);
-
+  
+      // Jika ada duplicate dan belum di-confirm, validate form akan menangani error
       if (!validateForm()) {
         return;
       }
-
+  
       const totalCost = parseInt(formData.hargaBeli) * parseInt(formData.jumlah);
       const hasSufficientCash = await cashFlowService.checkCashAvailability(totalCost);
-
+  
       if (!hasSufficientCash) {
         setError('Saldo kas tidak mencukupi untuk pembelian stok ini');
         return;
       }
-
+  
       const newStock = {
         produk: formData.produk,
         kategori: formData.kategori,
@@ -195,27 +254,33 @@ const StokMasuk = () => {
         margin: parseFloat(formData.margin),
         tanggalMasuk: new Date().toISOString().split('T')[0],
         sisaStok: parseInt(formData.jumlah),
-        barcode: stockService.generateBarcode()
+        barcode: useExistingBarcode ? formData.barcode : stockService.generateBarcode()
       };
-
-      await stockService.addStokMasuk(newStock);
+  
+      await stockService.addStokMasuk(newStock, forceContinue);
       await loadStokMasuk();
-
+  
+      // Reset semua state
       setFormData({
         produk: '',
         kategori: '',
         jumlah: '',
         hargaBeli: '',
         hargaJual: '',
-        margin: ''
+        margin: '',
+        barcode: ''
       });
       
       setFormErrors({});
       setIsDialogOpen(false);
-
+      setUseExistingBarcode(false);
+      setBarcode('');
+      setDuplicateProduct(null);
+      setForceContinue(false);
+  
       setSuccessMessage('Stok berhasil ditambahkan');
       setTimeout(() => setSuccessMessage(null), 3000);
-
+  
     } catch (err) {
       setError('Gagal menambah data: ' + err.message);
     }
@@ -375,15 +440,20 @@ const StokMasuk = () => {
       )}
 
       <div className="mb-6 flex justify-between items-center">
-        <AddStockDialog
-          isOpen={isDialogOpen}
-          onOpenChange={setIsDialogOpen}
-          formData={formData}
-          formErrors={formErrors}
-          error={error}
-          onInputChange={handleInputChange}
-          onSubmit={handleSubmit}
-        />
+      <AddStockDialog
+        isOpen={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        formData={formData}
+        formErrors={formErrors}
+        error={error}
+        onInputChange={handleInputChange}
+        onSubmit={handleSubmit}
+        useExistingBarcode={useExistingBarcode}
+        onBarcodeChange={handleBarcodeChange}
+        onUseExistingBarcodeChange={setUseExistingBarcode}
+        duplicateProduct={duplicateProduct}
+        onBarcodeConfirm={handleBarcodeConfirm}
+      />
 
         <Select onValueChange={handleSort}>
           <SelectTrigger className="w-[180px]">

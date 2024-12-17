@@ -33,22 +33,32 @@ class StockService {
   }
 
   async validateBarcode(barcode) {
-    if (!/^\d{13}$/.test(barcode)) {
-      throw new Error('Barcode harus 13 digit angka');
+    // Check if barcode format is valid (8-13 digits)
+    if (!/^\d{8,13}$/.test(barcode)) {
+      throw new Error('Barcode harus berisi 8-13 digit angka');
     }
+    return true;
+  }
 
+  async getAllProductsByBarcode(barcode) {
     try {
-      const existingProduct = await this.getProductByBarcode(barcode);
-      if (existingProduct) {
-        throw new Error('Barcode sudah digunakan');
-      }
-      return true;
+      const products = await dbService.getAllFromIndex('products', 'barcode', barcode);
+      return products;
     } catch (error) {
+      console.error('Error getting products by barcode:', error);
       throw error;
     }
   }
  
-  async addStokMasuk(item) {
+  async addStokMasuk(item, forceContinue = false) {
+    if (!forceContinue) {
+      try {
+        await this.validateBarcode(item.barcode);
+      } catch (error) {
+        throw error;
+      }
+    }
+
     const transaction = dbService.db.transaction(
       ['stokMasuk', 'products', 'cashFlow'],
       'readwrite'
@@ -66,11 +76,6 @@ class StockService {
       };
  
       try {
-        // Generate barcode if not provided
-        if (!item.barcode) {
-          item.barcode = this.generateBarcode();
-        }
-
         const stokMasukStore = transaction.objectStore('stokMasuk');
         const stokRequest = stokMasukStore.add({
           ...item,

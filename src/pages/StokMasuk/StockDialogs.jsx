@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PlusIcon } from 'lucide-react';
+import { Switch } from "@/components/ui/switch";
 
 export const AddStockDialog = ({
   isOpen,
@@ -13,7 +14,12 @@ export const AddStockDialog = ({
   formErrors,
   error,
   onInputChange,
-  onSubmit
+  onSubmit,
+  useExistingBarcode,
+  onBarcodeChange,
+  onUseExistingBarcodeChange,
+  duplicateProduct,
+  onBarcodeConfirm
 }) => {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -23,103 +29,164 @@ export const AddStockDialog = ({
           Tambah Stok Masuk
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-[900px]">
         <DialogHeader>
           <DialogTitle>Tambah Stok Masuk</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-4 px-6 py-4">
+
+        <div className="px-6 py-4">
           {error && (
-            <Alert variant="destructive" className="mx-0">
+            <Alert variant="destructive" className="mb-4">
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
 
-          <div className="space-y-1.5">
-            <label className="text-sm text-gray-600 font-medium">Kategori<span className="text-red-500">*</span></label>
-            <Select
-              value={formData.kategori}
-              onValueChange={(value) => onInputChange('kategori', value)}
-            >
-              <SelectTrigger className={formErrors.kategori ? 'border-red-500' : ''}>
-                <SelectValue placeholder="Pilih kategori" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ATK">ATK</SelectItem>
-                <SelectItem value="Seragam">Seragam</SelectItem>
-              </SelectContent>
-            </Select>
-            {formErrors.kategori && (
-              <p className="text-xs text-red-500 mt-1">{formErrors.kategori}</p>
-            )}
-          </div>
+          <div className="flex gap-6">
+            {/* Kolom Kiri */}
+            <div className="flex-1 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-sm text-gray-600 font-medium">Kategori<span className="text-red-500">*</span></label>
+                <Select
+                  value={formData.kategori}
+                  onValueChange={(value) => onInputChange('kategori', value)}
+                >
+                  <SelectTrigger className={formErrors.kategori ? 'border-red-500' : ''}>
+                    <SelectValue placeholder="Pilih kategori" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ATK">ATK</SelectItem>
+                    <SelectItem value="Seragam">Seragam</SelectItem>
+                  </SelectContent>
+                </Select>
+                {formErrors.kategori && (
+                  <p className="text-xs text-red-500 mt-1">{formErrors.kategori}</p>
+                )}
+              </div>
 
-          <div className="space-y-1.5">
-            <label className="text-sm text-gray-600 font-medium">Produk<span className="text-red-500">*</span></label>
-            <Input
-              placeholder="Masukkan nama produk"
-              value={formData.produk}
-              onChange={(e) => onInputChange('produk', e.target.value)}
-              className={formErrors.produk ? 'border-red-500' : ''}
-            />
-            {formErrors.produk && (
-              <p className="text-xs text-red-500 mt-1">{formErrors.produk}</p>
-            )}
-          </div>
+              <div className="space-y-1.5">
+                <label className="text-sm text-gray-600 font-medium">Produk<span className="text-red-500">*</span></label>
+                <Input
+                  placeholder="Masukkan nama produk"
+                  value={formData.produk}
+                  onChange={(e) => onInputChange('produk', e.target.value)}
+                  className={formErrors.produk ? 'border-red-500' : ''}
+                />
+                {formErrors.produk && (
+                  <p className="text-xs text-red-500 mt-1">{formErrors.produk}</p>
+                )}
+              </div>
 
-          <div className="space-y-1.5">
-            <label className="text-sm text-gray-600 font-medium">Jumlah<span className="text-red-500">*</span></label>
-            <Input
-              type="number"
-              placeholder="Masukkan jumlah"
-              value={formData.jumlah}
-              onChange={(e) => onInputChange('jumlah', e.target.value)}
-              className={formErrors.jumlah ? 'border-red-500' : ''}
-            />
-            {formErrors.jumlah && (
-              <p className="text-xs text-red-500 mt-1">{formErrors.jumlah}</p>
-            )}
-          </div>
+              <div className="flex items-center justify-between space-x-2 pt-2">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="useExistingBarcode"
+                    checked={useExistingBarcode}
+                    onChange={(e) => onUseExistingBarcodeChange(e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="useExistingBarcode" className="text-sm text-gray-600 font-medium">
+                    Gunakan Barcode Produk
+                  </label>
+                </div>
+              </div>
 
-          <div className="space-y-1.5">
-            <label className="text-sm text-gray-600 font-medium">Harga Beli<span className="text-red-500">*</span></label>
-            <Input
-              type="number"
-              placeholder="Masukkan harga beli"
-              value={formData.hargaBeli}
-              onChange={(e) => onInputChange('hargaBeli', e.target.value)}
-              className={formErrors.hargaBeli ? 'border-red-500' : ''}
-            />
-            {formErrors.hargaBeli && (
-              <p className="text-xs text-red-500 mt-1">{formErrors.hargaBeli}</p>
-            )}
-          </div>
+              {useExistingBarcode && (
+                <div className="space-y-1.5">
+                  <label className="text-sm text-gray-600 font-medium">Barcode<span className="text-red-500">*</span></label>
+                  <Input
+                    placeholder="Scan atau masukkan barcode"
+                    value={formData.barcode}
+                    onChange={(e) => onBarcodeChange(e.target.value)}
+                    className={formErrors.barcode ? 'border-red-500' : ''}
+                  />
+                  {formErrors.barcode && (
+                    <p className="text-xs text-red-500 mt-1">{formErrors.barcode}</p>
+                  )}
+                </div>
+              )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-sm text-gray-600 font-medium">Harga Jual<span className="text-red-500">*</span></label>
-              <Input
-                type="number"
-                placeholder="Harga jual"
-                value={formData.hargaJual}
-                onChange={(e) => onInputChange('hargaJual', e.target.value)}
-                className={formErrors.hargaJual ? 'border-red-500' : ''}
-              />
-              {formErrors.hargaJual && (
-                <p className="text-xs text-red-500 mt-1">{formErrors.hargaJual}</p>
+              {duplicateProduct && (
+                <Alert className="bg-yellow-50 border-yellow-200">
+                  <AlertDescription>
+                    <div className="space-y-1">
+                      <p className="font-semibold">Barcode sudah digunakan oleh:</p>
+                      <p>Produk: {duplicateProduct.name}</p>
+                      <p>Kategori: {duplicateProduct.kategori}</p>
+                      <p>Stok: {duplicateProduct.stock}</p>
+                      <div className="mt-3">
+                        <Button
+                          variant="outline"
+                          onClick={onBarcodeConfirm}
+                          className="bg-white hover:bg-gray-50 text-sm"
+                          size="sm"
+                        >
+                          Lanjutkan dengan barcode yang sama
+                        </Button>
+                      </div>
+                    </div>
+                  </AlertDescription>
+                </Alert>
               )}
             </div>
-            <div className="space-y-1.5">
-              <label className="text-sm text-gray-600 font-medium">Margin (%)<span className="text-red-500">*</span></label>
-              <Input
-                type="number"
-                placeholder="Margin"
-                value={formData.margin}
-                onChange={(e) => onInputChange('margin', e.target.value)}
-                className={formErrors.margin ? 'border-red-500' : ''}
-              />
-              {formErrors.margin && (
-                <p className="text-xs text-red-500 mt-1">{formErrors.margin}</p>
-              )}
+
+            {/* Kolom Kanan */}
+            <div className="flex-1 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-sm text-gray-600 font-medium">Jumlah<span className="text-red-500">*</span></label>
+                <Input
+                  type="number"
+                  placeholder="Masukkan jumlah"
+                  value={formData.jumlah}
+                  onChange={(e) => onInputChange('jumlah', e.target.value)}
+                  className={formErrors.jumlah ? 'border-red-500' : ''}
+                />
+                {formErrors.jumlah && (
+                  <p className="text-xs text-red-500 mt-1">{formErrors.jumlah}</p>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm text-gray-600 font-medium">Harga Beli<span className="text-red-500">*</span></label>
+                <Input
+                  type="number"
+                  placeholder="Masukkan harga beli"
+                  value={formData.hargaBeli}
+                  onChange={(e) => onInputChange('hargaBeli', e.target.value)}
+                  className={formErrors.hargaBeli ? 'border-red-500' : ''}
+                />
+                {formErrors.hargaBeli && (
+                  <p className="text-xs text-red-500 mt-1">{formErrors.hargaBeli}</p>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm text-gray-600 font-medium">Harga Jual<span className="text-red-500">*</span></label>
+                <Input
+                  type="number"
+                  placeholder="Harga jual"
+                  value={formData.hargaJual}
+                  onChange={(e) => onInputChange('hargaJual', e.target.value)}
+                  className={formErrors.hargaJual ? 'border-red-500' : ''}
+                />
+                {formErrors.hargaJual && (
+                  <p className="text-xs text-red-500 mt-1">{formErrors.hargaJual}</p>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm text-gray-600 font-medium">Margin (%)<span className="text-red-500">*</span></label>
+                <Input
+                  type="number"
+                  placeholder="Margin"
+                  value={formData.margin}
+                  onChange={(e) => onInputChange('margin', e.target.value)}
+                  className={formErrors.margin ? 'border-red-500' : ''}
+                />
+                {formErrors.margin && (
+                  <p className="text-xs text-red-500 mt-1">{formErrors.margin}</p>
+                )}
+              </div>
             </div>
           </div>
         </div>
