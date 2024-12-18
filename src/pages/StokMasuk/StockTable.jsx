@@ -1,11 +1,10 @@
-/* eslint-disable react/prop-types */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Info, Barcode, Plus, PencilIcon, TrashIcon, Printer } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import JsBarcode from 'jsbarcode';
+import { Input } from "@/components/ui/input";
 
 const ActionDialog = ({
   isOpen,
@@ -14,8 +13,103 @@ const ActionDialog = ({
   onRestock,
   onUpdatePrice,
   onDelete,
-  onPrintBarcode
+  onPrintBarcode,
+  onBarcodeUpdate
 }) => {
+  const [useExistingBarcode, setUseExistingBarcode] = useState(false);
+  const [inputBuffer, setInputBuffer] = useState('');
+  const [lastScanTime, setLastScanTime] = useState(0);
+  const [barcode, setBarcode] = useState('');
+  const [error, setError] = useState(null);
+  const [isGeneratedBarcode, setIsGeneratedBarcode] = useState(false);
+  const BARCODE_LENGTH = 13;
+  const SCAN_TIMEOUT = 100;
+
+  useEffect(() => {
+    if (isOpen) {
+      // Reset states when dialog opens
+      setUseExistingBarcode(false);
+      setInputBuffer('');
+      setBarcode(item?.barcode || '');
+      setError(null);
+      setIsGeneratedBarcode(false);
+    }
+  }, [isOpen, item]);
+
+  useEffect(() => {
+    if (!isOpen || !useExistingBarcode) return;
+
+    const handleKeyPress = (event) => {
+      const currentTime = new Date().getTime();
+      
+      if (currentTime - lastScanTime > SCAN_TIMEOUT) {
+        setInputBuffer('');
+      }
+      setLastScanTime(currentTime);
+
+      if (event.key === 'Enter') {
+        if (inputBuffer.length > 0) {
+          const scannedBarcode = inputBuffer;
+          if (scannedBarcode.length === BARCODE_LENGTH) {
+            setBarcode(scannedBarcode);
+            const audio = new Audio('/sounds/beep.mp3');
+            audio.play().catch(e => console.log('Audio play failed:', e));
+          }
+          setInputBuffer('');
+        }
+      } else {
+        if (/^\d+$/.test(event.key)) {
+          setInputBuffer(prev => prev + event.key);
+        }
+      }
+    };
+
+    window.addEventListener('keypress', handleKeyPress);
+    return () => {
+      window.removeEventListener('keypress', handleKeyPress);
+    };
+  }, [isOpen, useExistingBarcode, inputBuffer, lastScanTime]);
+
+  const handleGenerateBarcode = () => {
+    const timestamp = Date.now().toString();
+    const newBarcode = timestamp.slice(-13).padStart(13, '0');
+    setBarcode(newBarcode);
+    setIsGeneratedBarcode(true);
+    setUseExistingBarcode(false);
+  };
+
+  const handleToggleInput = (checked) => {
+    setUseExistingBarcode(checked);
+    if (checked) {
+      // Clear the generated barcode when switching to manual input
+      setBarcode('');
+      setIsGeneratedBarcode(false);
+    } else {
+      // Clear the manual input when unchecking
+      setBarcode('');
+      setIsGeneratedBarcode(false);
+    }
+  };
+
+  const handleSaveBarcode = async () => {
+    try {
+      if (!barcode) {
+        setError('Barcode tidak boleh kosong');
+        return;
+      }
+
+      if (!/^\d{8,13}$/.test(barcode)) {
+        setError('Barcode harus berisi 8-13 digit angka');
+        return;
+      }
+
+      await onBarcodeUpdate(item.id, barcode);
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   if (!item) return null;
 
   return (
@@ -52,38 +146,84 @@ const ActionDialog = ({
           </div>
 
           {/* Barcode Section */}
-          {item.barcode && (
-            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-500 mb-2">Barcode</p>
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-gray-900">
+                {item.barcode ? 'Barcode Produk' : 'Barcode belum tersedia'}
+              </p>
+            </div>
+            
+            {item.barcode ? (
               <div className="flex flex-col items-center">
-                <svg ref={(ref) => {
-                  if (ref) {
-                    try {
-                      JsBarcode(ref, item.barcode, {
-                        format: "EAN13",
-                        width: 2,
-                        height: 80,
-                        displayValue: true,
-                        fontSize: 14,
-                        margin: 5
-                      });
-                    } catch (err) {
-                      console.error('Error generating barcode:', err);
-                    }
-                  }
-                }} />
+                <p className="font-mono text-black text-lg mb-2">{item.barcode}</p>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => onPrintBarcode(item.barcode)}
+                  onClick={() => onPrintBarcode(item.barcode, item.produk)}
                   className="mt-2"
                 >
                   <Printer className="h-4 w-4 mr-2" />
                   Print Barcode
                 </Button>
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center space-x-4">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleGenerateBarcode}
+                    disabled={useExistingBarcode}
+                    className="flex items-center"
+                  >
+                    <Barcode className="h-4 w-4 mr-2" />
+                    Generate Barcode Otomatis
+                  </Button>
+                  
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="useExistingBarcode"
+                      checked={useExistingBarcode}
+                      onChange={(e) => handleToggleInput(e.target.checked)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="useExistingBarcode" className="text-sm text-gray-600 font-medium">
+                      Input Manual
+                    </label>
+                  </div>
+                </div>
+
+                {(useExistingBarcode || barcode) && (
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="Scan barcode atau ketik manual"
+                      value={barcode}
+                      onChange={(e) => setBarcode(e.target.value)}
+                      readOnly={!useExistingBarcode && isGeneratedBarcode}
+                      className="font-mono"
+                    />
+                    {error && (
+                      <p className="text-xs text-red-500">{error}</p>
+                    )}
+                  </div>
+                )}
+
+                {barcode && (
+                  <div className="flex flex-col items-center pt-2">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={handleSaveBarcode}
+                      className="mt-2"
+                    >
+                      Simpan Barcode
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Action Buttons */}
           <div className="grid grid-cols-3 gap-3">
@@ -135,7 +275,8 @@ export const StockTable = ({
   onRestock,
   onUpdatePrice,
   onDelete,
-  onPrintBarcode
+  onPrintBarcode,
+  onBarcodeUpdate
 }) => {
   const [selectedItem, setSelectedItem] = useState(null);
 
@@ -191,6 +332,7 @@ export const StockTable = ({
         onUpdatePrice={onUpdatePrice}
         onDelete={onDelete}
         onPrintBarcode={onPrintBarcode}
+        onBarcodeUpdate={onBarcodeUpdate}
       />
     </>
   );

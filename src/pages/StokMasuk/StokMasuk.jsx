@@ -102,20 +102,34 @@ const StokMasuk = () => {
     setError(null);
   };
 
-  const handlePrintBarcode = (barcode) => {
+ 
+  const handlePrintBarcode = (barcode, productName) => {
     try {
       const createBarcodeText = () => {
         let output = '';
         output += '\x1B\x40'; // Reset printer
+        
+        // Print product name with larger and bold text
         output += '\x1B\x61\x01'; // Center align
+        output += '\x1B\x21\x30'; // Double height + Double width + Bold
+        output += '\x1B\x45\x01'; // Bold on
+        output += productName + '\n'; // Add product name
+        output += '\x1B\x45\x00'; // Bold off
+        output += '\x1B\x21\x00'; // Reset text size
+        output += '\n'; // Add a blank line for spacing
+        
+        // Print barcode
+        output += '\x1B\x61\x01'; // Center align (kept for barcode)
         output += '\x1D\x77\x03'; // Width: 3
         output += '\x1D\x68\x64'; // Height: 100 dots
         output += '\x1D\x6B\x02'; // GS k 2 - EAN13 format
         output += `${barcode}\x00`; // Barcode data with null terminator
+        output += '\x1B\x21\x10'; // Double width for barcode number
+        output += '\x1B\x21\x00'; // Reset text size
         output += '\x1D\x56\x42\x00'; // Cut paper
         return output;
       };
-
+  
       const printWithRawBT = (text) => {
         const isAndroid = /Android/i.test(navigator.userAgent);
         if (isAndroid) {
@@ -127,7 +141,7 @@ const StokMasuk = () => {
           alert('Printing is only available on Android devices');
         }
       };
-
+  
       const barcodeText = createBarcodeText();
       printWithRawBT(barcodeText);
     } catch (error) {
@@ -152,6 +166,17 @@ const handleImportSuccess = async (importedData) => {
     setTimeout(() => setSuccessMessage(null), 3000);
   } catch (err) {
     setError('Gagal menyimpan data import: ' + err.message);
+  }
+};
+
+const handleBarcodeUpdate = async (productId, newBarcode) => {
+  try {
+    await stockService.updateBarcode(productId, newBarcode);
+    await loadStokMasuk(); // Refresh data setelah update berhasil
+    setSuccessMessage('Barcode berhasil diperbarui');
+    setTimeout(() => setSuccessMessage(null), 3000);
+  } catch (err) {
+    setError('Gagal memperbarui barcode: ' + err.message);
   }
 };
 
@@ -525,13 +550,14 @@ const handleImportSuccess = async (importedData) => {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <StockTable
-              stock={getSortedData()}
-              onRestock={openRestockDialog}
-              onUpdatePrice={openUpdatePriceDialog}
-              onDelete={openDeleteDialog}
-              onPrintBarcode={handlePrintBarcode}
-            />
+          <StockTable
+  stock={getSortedData()}
+  onRestock={openRestockDialog}
+  onUpdatePrice={openUpdatePriceDialog}
+  onDelete={openDeleteDialog}
+  onPrintBarcode={(barcode, productName) => handlePrintBarcode(barcode, productName)}
+  onBarcodeUpdate={handleBarcodeUpdate}
+/>
           </div>
         </CardContent>
       </Card>

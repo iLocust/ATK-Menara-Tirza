@@ -40,6 +40,66 @@ class StockService {
     return true;
   }
 
+  async updateBarcode(productId, newBarcode) {
+    try {
+      // Validate the new barcode
+      await this.validateBarcode(newBarcode);
+  
+      // Check if barcode is already in use (unless it's empty)
+      if (newBarcode) {
+        const existingProducts = await this.getAllProductsByBarcode(newBarcode);
+        const isUsedByDifferentProduct = existingProducts.length > 0 && 
+          existingProducts[0].id !== productId;
+        
+        if (isUsedByDifferentProduct) {
+          throw new Error('Barcode sudah digunakan oleh produk lain');
+        }
+      }
+  
+      const transaction = dbService.db.transaction(
+        ['stokMasuk', 'products'],
+        'readwrite'
+      );
+  
+      return new Promise((resolve, reject) => {
+        transaction.onerror = () => reject(new Error('Gagal menyimpan barcode'));
+        transaction.oncomplete = () => resolve('Barcode berhasil diperbarui');
+  
+        try {
+          // Update in stokMasuk store
+          const stokMasukStore = transaction.objectStore('stokMasuk');
+          const getStokRequest = stokMasukStore.get(productId);
+  
+          getStokRequest.onsuccess = () => {
+            const stok = getStokRequest.result;
+            if (stok) {
+              stok.barcode = newBarcode;
+              stokMasukStore.put(stok);
+  
+              // Update in products store
+              const productsStore = transaction.objectStore('products');
+              const getProductRequest = productsStore.index('name').get(stok.produk);
+  
+              getProductRequest.onsuccess = () => {
+                const product = getProductRequest.result;
+                if (product) {
+                  product.barcode = newBarcode;
+                  productsStore.put(product);
+                }
+              };
+            } else {
+              reject(new Error('Produk tidak ditemukan'));
+            }
+          };
+        } catch (error) {
+          reject(error);
+        }
+      });
+    } catch (error) {
+      throw error;
+    }
+  }
+
   async getAllProductsByBarcode(barcode) {
     try {
       const products = await dbService.getAllFromIndex('products', 'barcode', barcode);

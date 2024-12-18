@@ -1,14 +1,14 @@
 /* eslint-disable react/prop-types */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { PlusIcon, Upload } from 'lucide-react';
-import { Switch } from "@/components/ui/switch";
+import { PlusIcon, Upload, Loader2 } from 'lucide-react';
 import { importStock } from '../Transactions/excelUtils';
- const AddStockDialog = ({
+
+const AddStockDialog = ({
   isOpen,
   onOpenChange,
   formData,
@@ -22,6 +22,55 @@ import { importStock } from '../Transactions/excelUtils';
   duplicateProduct,
   onBarcodeConfirm
 }) => {
+  // State for barcode scanning
+  const [inputBuffer, setInputBuffer] = useState('');
+  const [lastScanTime, setLastScanTime] = useState(0);
+  const BARCODE_LENGTH = 13;
+  const SCAN_TIMEOUT = 100;
+
+  // Handle barcode scanner input
+  useEffect(() => {
+    if (!useExistingBarcode) return; // Only listen when checkbox is checked
+
+    const handleKeyPress = (event) => {
+      const currentTime = new Date().getTime();
+      
+      if (currentTime - lastScanTime > SCAN_TIMEOUT) {
+        setInputBuffer('');
+      }
+      setLastScanTime(currentTime);
+
+      if (event.key === 'Enter') {
+        if (inputBuffer.length > 0) {
+          const scannedBarcode = inputBuffer;
+          if (scannedBarcode.length === BARCODE_LENGTH) {
+            onBarcodeChange(scannedBarcode);
+            const audio = new Audio('/sounds/beep.mp3');
+            audio.play().catch(e => console.log('Audio play failed:', e));
+          }
+          setInputBuffer('');
+        }
+      } else {
+        if (/^\d+$/.test(event.key)) {
+          setInputBuffer(prev => prev + event.key);
+        }
+      }
+    };
+
+    window.addEventListener('keypress', handleKeyPress);
+    return () => {
+      window.removeEventListener('keypress', handleKeyPress);
+    };
+  }, [useExistingBarcode, inputBuffer, lastScanTime, onBarcodeChange]);
+
+  const handleBarcodeToggle = (checked) => {
+    onUseExistingBarcodeChange(checked);
+    if (!checked) {
+      onBarcodeChange('');
+      setInputBuffer('');
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
@@ -83,7 +132,7 @@ import { importStock } from '../Transactions/excelUtils';
                     type="checkbox"
                     id="useExistingBarcode"
                     checked={useExistingBarcode}
-                    onChange={(e) => onUseExistingBarcodeChange(e.target.checked)}
+                    onChange={(e) => handleBarcodeToggle(e.target.checked)}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
                   <label htmlFor="useExistingBarcode" className="text-sm text-gray-600 font-medium">
@@ -93,41 +142,43 @@ import { importStock } from '../Transactions/excelUtils';
               </div>
 
               {useExistingBarcode && (
-                <div className="space-y-1.5">
-                  <label className="text-sm text-gray-600 font-medium">Barcode<span className="text-red-500">*</span></label>
-                  <Input
-                    placeholder="Scan atau masukkan barcode"
-                    value={formData.barcode}
-                    onChange={(e) => onBarcodeChange(e.target.value)}
-                    className={formErrors.barcode ? 'border-red-500' : ''}
-                  />
-                  {formErrors.barcode && (
-                    <p className="text-xs text-red-500 mt-1">{formErrors.barcode}</p>
-                  )}
-                </div>
-              )}
+                <>
+                  <div className="space-y-1.5">
+                    <label className="text-sm text-gray-600 font-medium">Barcode<span className="text-red-500">*</span></label>
+                    <Input
+                      placeholder="Scan barcode atau ketik manual"
+                      value={formData.barcode}
+                      onChange={(e) => onBarcodeChange(e.target.value)}
+                      className={formErrors.barcode ? 'border-red-500' : ''}
+                    />
+                    {formErrors.barcode && (
+                      <p className="text-xs text-red-500 mt-1">{formErrors.barcode}</p>
+                    )}
+                  </div>
 
-              {duplicateProduct && (
-                <Alert className="bg-yellow-50 border-yellow-200">
-                  <AlertDescription>
-                    <div className="space-y-1">
-                      <p className="font-semibold">Barcode sudah digunakan oleh:</p>
-                      <p>Produk: {duplicateProduct.name}</p>
-                      <p>Kategori: {duplicateProduct.kategori}</p>
-                      <p>Stok: {duplicateProduct.stock}</p>
-                      <div className="mt-3">
-                        <Button
-                          variant="outline"
-                          onClick={onBarcodeConfirm}
-                          className="bg-white hover:bg-gray-50 text-sm"
-                          size="sm"
-                        >
-                          Lanjutkan dengan barcode yang sama
-                        </Button>
-                      </div>
-                    </div>
-                  </AlertDescription>
-                </Alert>
+                  {duplicateProduct && (
+                    <Alert className="bg-yellow-50 border-yellow-200">
+                      <AlertDescription>
+                        <div className="space-y-1">
+                          <p className="font-semibold">Barcode sudah digunakan oleh:</p>
+                          <p>Produk: {duplicateProduct.name}</p>
+                          <p>Kategori: {duplicateProduct.kategori}</p>
+                          <p>Stok: {duplicateProduct.stock}</p>
+                          <div className="mt-3">
+                            <Button
+                              variant="outline"
+                              onClick={onBarcodeConfirm}
+                              className="bg-white hover:bg-gray-50 text-sm"
+                              size="sm"
+                            >
+                              Lanjutkan dengan barcode yang sama
+                            </Button>
+                          </div>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </>
               )}
             </div>
 
@@ -201,7 +252,7 @@ import { importStock } from '../Transactions/excelUtils';
   );
 };
 
- const RestockDialog = ({
+const RestockDialog = ({
   isOpen,
   onOpenChange,
   selectedProduct,
@@ -278,7 +329,7 @@ import { importStock } from '../Transactions/excelUtils';
   );
 };
 
- const UpdatePriceDialog = ({
+const UpdatePriceDialog = ({
   isOpen,
   onOpenChange,
   selectedProduct,
@@ -338,7 +389,7 @@ import { importStock } from '../Transactions/excelUtils';
   );
 };
 
- const DeleteDialog = ({
+const DeleteDialog = ({
   isOpen,
   onOpenChange,
   selectedProduct,
@@ -379,7 +430,7 @@ import { importStock } from '../Transactions/excelUtils';
   );
 };
 
- const ImportStockDialog = ({
+const ImportStockDialog = ({
   isOpen,
   onOpenChange,
   onImportSuccess
@@ -481,9 +532,6 @@ import { importStock } from '../Transactions/excelUtils';
               <ul className="list-disc pl-5 space-y-1">
                 <li>Gunakan template dari hasil export untuk format yang benar</li>
                 <li>Kategori harus 'ATK' atau 'Seragam'</li>
-                <li>Semua kolom harus diisi kecuali barcode</li>
-                <li>Harga dan jumlah harus lebih dari 0</li>
-                <li>Margin tidak boleh negatif</li>
               </ul>
             </div>
           </div>
@@ -507,7 +555,14 @@ import { importStock } from '../Transactions/excelUtils';
               disabled={!selectedFile || isLoading}
               className="flex items-center gap-2"
             >
-              {isLoading ? 'Mengimport...' : 'Import'}
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Mengimport...
+                </>
+              ) : (
+                'Import'
+              )}
             </Button>
           </div>
         </DialogFooter>
@@ -516,5 +571,4 @@ import { importStock } from '../Transactions/excelUtils';
   );
 };
 
-// Export all dialogs
 export { AddStockDialog, RestockDialog, UpdatePriceDialog, DeleteDialog, ImportStockDialog };

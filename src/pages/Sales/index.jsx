@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Card, 
   CardContent, 
@@ -8,15 +8,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useNavigate } from 'react-router-dom';
-import { Search, Loader2, AlertCircle, Barcode,Camera, SwitchCamera, StopCircle } from 'lucide-react';
+import { Search, Loader2, AlertCircle } from 'lucide-react';
 import { stockService } from '@/lib/db/StockService';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import JsBarcode from 'jsbarcode';
-import { BrowserMultiFormatReader } from '@zxing/library';
-
-
 
 const Penjualan = () => {
   const navigate = useNavigate();
@@ -28,19 +23,12 @@ const Penjualan = () => {
   const [cartErrors, setCartErrors] = useState({});
   const [globalError, setGlobalError] = useState(null);
   const [filteredProducts, setFilteredProducts] = useState([]);
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [barcodeInput, setBarcodeInput] = useState('');
-  const barcodeInputRef = useRef(null);
-  const [scanError, setScanError] = useState(null);
+  const [inputBuffer, setInputBuffer] = useState('');
+  const [lastScanTime, setLastScanTime] = useState(0);
   const [scanSuccess, setScanSuccess] = useState(null);
-  const [isScanning, setIsScanning] = useState(false);
-  const [selectedCamera, setSelectedCamera] = useState('');
-  const [availableCameras, setAvailableCameras] = useState([]);
-  const videoRef = useRef(null);
-  const codeReader = useRef(new BrowserMultiFormatReader());
 
   const BARCODE_LENGTH = 13;
-  const SCAN_TIMEOUT = 500;
+  const SCAN_TIMEOUT = 100; // 100ms timeout for scanner input
 
   useEffect(() => {
     loadProducts();
@@ -51,21 +39,41 @@ const Penjualan = () => {
   }, [products, searchTerm, selectedCategory]);
 
   useEffect(() => {
-    if (isScannerOpen && barcodeInputRef.current) {
-      barcodeInputRef.current.focus();
-    }
-  }, [isScannerOpen]);
+    const handleKeyPress = async (event) => {
+      const currentTime = new Date().getTime();
+      
+      if (currentTime - lastScanTime > SCAN_TIMEOUT) {
+        setInputBuffer('');
+      }
+      setLastScanTime(currentTime);
 
-  useEffect(() => {
-    if (!isScannerOpen) {
-      stopScanning();
-    } else {
-      getCameras();
-    }
-    return () => {
-      stopScanning();
+      if (event.key === 'Enter') {
+        if (inputBuffer.length > 0) {
+          const scannedBarcode = inputBuffer;
+          if (scannedBarcode.length === BARCODE_LENGTH) {
+            const product = products.find(p => p.barcode === scannedBarcode);
+            if (product) {
+              await addToCart(product);
+              const audio = new Audio('/sounds/beep.mp3');
+              await audio.play().catch(e => console.log('Audio play failed:', e));
+              setScanSuccess(`${product.name} ditambahkan ke keranjang`);
+              setTimeout(() => setScanSuccess(null), 2000);
+            }
+          }
+          setInputBuffer('');
+        }
+      } else {
+        if (/^\d+$/.test(event.key)) {
+          setInputBuffer(prev => prev + event.key);
+        }
+      }
     };
-  }, [isScannerOpen]);
+
+    window.addEventListener('keypress', handleKeyPress);
+    return () => {
+      window.removeEventListener('keypress', handleKeyPress);
+    };
+  }, [inputBuffer, lastScanTime, products]);
 
   const loadProducts = async () => {
     try {
@@ -99,116 +107,6 @@ const Penjualan = () => {
       (selectedCategory === 'all' || product.kategori === selectedCategory)
     );
     setFilteredProducts(filtered);
-  };
-
-  const getCameras = async () => {
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter(device => device.kind === 'videoinput');
-      setAvailableCameras(videoDevices);
-      
-      // Try to find and select rear camera by default
-      const rearCamera = videoDevices.find(device => 
-        device.label.toLowerCase().includes('back') || 
-        device.label.toLowerCase().includes('rear')
-      );
-      setSelectedCamera(rearCamera?.deviceId || videoDevices[0]?.deviceId);
-    } catch (err) {
-      console.error('Error accessing cameras:', err);
-      setScanError('Tidak dapat mengakses kamera');
-    }
-  };
-
-  const startScanning = async () => {
-    try {
-      setIsScanning(true);
-      setScanError(null);
-      
-      if (!selectedCamera) {
-        setScanError('Tidak ada kamera yang dipilih');
-        return;
-      }
-
-      const constraints = {
-        video: {
-          deviceId: selectedCamera,
-          facingMode: "environment",
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
-      };
-
-      await codeReader.current.decodeFromConstraints(
-        constraints,
-        videoRef.current,
-        async (result, err) => {
-          if (result) {
-            const barcode = result.getText();
-            if (barcode.length === BARCODE_LENGTH) {
-              // Play success sound
-              const audio = new Audio('/sounds/beep.mp3');
-              await audio.play().catch(e => console.log('Audio play failed:', e));
-              
-              // Process the scanned barcode
-              setBarcodeInput(barcode);
-              await handleBarcodeSubmit();
-            }
-          }
-          if (err && err.name !== 'NotFoundException') {
-            console.error('Scanning error:', err);
-          }
-        }
-      );
-    } catch (err) {
-      console.error('Error starting scanner:', err);
-      setScanError('Gagal memulai scanner: ' + err.message);
-    }
-  };
-
-  const stopScanning = async () => {
-    try {
-      await codeReader.current.reset();
-      setIsScanning(false);
-    } catch (err) {
-      console.error('Error stopping scanner:', err);
-    }
-  };
-
-  const handleCameraSwitch = async (deviceId) => {
-    await stopScanning();
-    setSelectedCamera(deviceId);
-    startScanning();
-  };
-
-  const handleBarcodeSubmit = async () => {
-    try {
-      setScanError(null);
-      if (barcodeInput.length !== BARCODE_LENGTH) {
-        setScanError('Barcode harus 13 digit');
-        return;
-      }
-
-      const product = products.find(p => p.barcode === barcodeInput);
-      if (!product) {
-        setScanError('Produk tidak ditemukan');
-        return;
-      }
-
-      await addToCart(product);
-      setScanSuccess(`${product.name} ditambahkan ke keranjang`);
-      setBarcodeInput('');
-      setTimeout(() => setScanSuccess(null), 2000);
-      
-    } catch (error) {
-      setScanError(error.message);
-    }
-  };
-
-  const handleBarcodeKeyPress = async (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      await handleBarcodeSubmit();
-    }
   };
 
   const addToCart = async (product) => {
@@ -255,10 +153,6 @@ const Penjualan = () => {
           barcode: currentProduct.barcode
         }]);
       }
-
-      // Play success sound
-      const audio = new Audio('/sounds/beep.mp3');
-      audio.play().catch(e => console.log('Audio play failed:', e));
 
     } catch (err) {
       setCartErrors({
@@ -354,108 +248,6 @@ const Penjualan = () => {
     }
   };
 
-  const renderScannerDialog = () => (
-    <Dialog open={isScannerOpen} onOpenChange={(open) => {
-      setIsScannerOpen(open);
-      if (!open) stopScanning();
-    }}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Scan Barcode</DialogTitle>
-        </DialogHeader>
-        <div className="py-4 px-6">
-          <div className="space-y-4">
-            {scanError && (
-              <Alert variant="destructive">
-                <AlertDescription>{scanError}</AlertDescription>
-              </Alert>
-            )}
-            
-            {scanSuccess && (
-              <Alert className="bg-green-50 text-green-700 border-green-200">
-                <AlertDescription>{scanSuccess}</AlertDescription>
-              </Alert>
-            )}
-
-            <div className="space-y-4">
-              {availableCameras.length > 1 && (
-                <Select value={selectedCamera} onValueChange={handleCameraSwitch}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih Kamera" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableCameras.map((camera) => (
-                      <SelectItem key={camera.deviceId} value={camera.deviceId}>
-                        {camera.label || `Kamera ${camera.deviceId.slice(0, 5)}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-
-              <div className="flex justify-center gap-2">
-                {!isScanning ? (
-                  <Button onClick={startScanning} className="flex items-center gap-2">
-                    <Camera className="h-4 w-4" />
-                    Mulai Scan
-                  </Button>
-                ) : (
-                  <Button onClick={stopScanning} variant="destructive" className="flex items-center gap-2">
-                    <StopCircle className="h-4 w-4" />
-                    Hentikan Scan
-                  </Button>
-                )}
-              </div>
-
-              <div className="relative aspect-video w-full bg-black rounded-lg overflow-hidden">
-                <video
-                  ref={videoRef}
-                  className="absolute inset-0 w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 border-2 border-white/50 pointer-events-none">
-                  <div className="absolute inset-x-[20%] inset-y-[30%] border-2 border-green-400/50">
-                    <div className="absolute -top-2 -left-2 w-4 h-4 border-t-2 border-l-2 border-green-400"></div>
-                    <div className="absolute -top-2 -right-2 w-4 h-4 border-t-2 border-r-2 border-green-400"></div>
-                    <div className="absolute -bottom-2 -left-2 w-4 h-4 border-b-2 border-l-2 border-green-400"></div>
-                    <div className="absolute -bottom-2 -right-2 w-4 h-4 border-b-2 border-r-2 border-green-400"></div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">
-                  Atau masukkan barcode manual
-                </label>
-                <div className="flex gap-2">
-                  <Input
-                    ref={barcodeInputRef}
-                    type="text"
-                    value={barcodeInput}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 13);
-                      setBarcodeInput(value);
-                      setScanError(null);
-                    }}
-                    onKeyPress={handleBarcodeKeyPress}
-                    placeholder="13 digit barcode"
-                    className="font-mono text-lg"
-                    autoComplete="off"
-                  />
-                  <Button
-                    onClick={handleBarcodeSubmit}
-                    disabled={barcodeInput.length !== BARCODE_LENGTH}
-                  >
-                    Tambah
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-
   if (isLoading) {
     return (
       <div className="p-6 flex items-center justify-center h-screen">
@@ -474,24 +266,14 @@ const Penjualan = () => {
           <CardHeader className="border-b">
             <CardTitle>Daftar Produk</CardTitle>
             <div className="space-y-4">
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
-                  <Input
-                    placeholder="Cari produk..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-8"
-                  />
-                </div>
-                <Button
-                  variant="outline"
-                  className="flex items-center gap-2"
-                  onClick={() => setIsScannerOpen(true)}
-                >
-                  <Barcode className="h-4 w-4" />
-                  Scan Barcode
-                </Button>
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                <Input
+                  placeholder="Cari produk..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-8"
+                />
               </div>
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                 <SelectTrigger>
@@ -503,6 +285,11 @@ const Penjualan = () => {
                   <SelectItem value="Seragam">Seragam</SelectItem>
                 </SelectContent>
               </Select>
+              {scanSuccess && (
+                <Alert className="bg-green-50 text-green-700 border-green-200">
+                  <AlertDescription>{scanSuccess}</AlertDescription>
+                </Alert>
+              )}
             </div>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto">
@@ -526,26 +313,6 @@ const Penjualan = () => {
                           Rp {product.price?.toLocaleString()}
                         </span>
                       </div>
-                      {product.barcode && (
-                        <div className="mt-2">
-                          <svg ref={(ref) => {
-                            if (ref) {
-                              try {
-                                JsBarcode(ref, product.barcode, {
-                                  format: "EAN13",
-                                  width: 1.5,
-                                  height: 30,
-                                  displayValue: true,
-                                  fontSize: 10,
-                                  margin: 0
-                                });
-                              } catch (err) {
-                                console.error('Error generating barcode:', err);
-                              }
-                            }
-                          }} />
-                        </div>
-                      )}
                     </div>
                     <Button 
                       variant="ghost" 
@@ -592,26 +359,6 @@ const Penjualan = () => {
                       <p className="text-xs text-gray-500">
                         Subtotal: Rp {(item.price * item.quantity).toLocaleString()}
                       </p>
-                      {item.barcode && (
-                        <div className="mt-1">
-                          <svg ref={(ref) => {
-                            if (ref) {
-                              try {
-                                JsBarcode(ref, item.barcode, {
-                                  format: "EAN13",
-                                  width: 1,
-                                  height: 25,
-                                  displayValue: true,
-                                  fontSize: 8,
-                                  margin: 0
-                                });
-                              } catch (err) {
-                                console.error('Error generating barcode:', err);
-                              }
-                            }
-                          }} />
-                        </div>
-                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Button 
@@ -652,35 +399,33 @@ const Penjualan = () => {
                     </span>
                   </div>
                   <Button 
-                    className="w-full bg-green-600 hover:bg-green-700" 
-                    size="lg"
-                    onClick={handleCheckout}
-                  >
-                    Bayar Sekarang ({cart.reduce((sum, item) => sum + item.quantity, 0)} items)
-                  </Button>
-                </div>
-              ) : (
-                <div className="h-full flex items-center justify-center">
-                  <p className="text-center text-gray-500">Keranjang kosong</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+className="w-full bg-green-600 hover:bg-green-700" 
+size="lg"
+onClick={handleCheckout}
+>
+Bayar Sekarang ({cart.reduce((sum, item) => sum + item.quantity, 0)} items)
+</Button>
+</div>
+) : (
+<div className="h-full flex items-center justify-center">
+<p className="text-center text-gray-500">Keranjang kosong</p>
+</div>
+)}
+</div>
+</CardContent>
+</Card>
+</div>
 
-      {renderScannerDialog()}
-
-      {globalError && (
-        <div className="fixed bottom-4 right-4 w-80">
-          <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-3 rounded shadow">
-            <AlertCircle className="h-4 w-4" />
-            {globalError}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+{globalError && (
+<div className="fixed bottom-4 right-4 w-80">
+<div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-3 rounded shadow">
+<AlertCircle className="h-4 w-4" />
+{globalError}
+</div>
+</div>
+)}
+</div>
+);
 };
 
 export default Penjualan;
