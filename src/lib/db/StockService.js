@@ -131,6 +131,44 @@ class StockService {
     });
   }
  
+  async addImportedStock(stockItem) {
+    try {
+      // Skip cash flow operations for imported items
+      if (!stockItem.isImported) {
+        return this.addStokMasuk(stockItem); // Use normal process for non-imported items
+      }
+  
+      // For imported items, just add to database without cash flow
+      const id = await dbService.add('stokMasuk', {
+        ...stockItem,
+        jumlah: stockItem.sisaStok, // Set initial jumlah same as sisaStok for imports
+      });
+  
+      // Update or create product record
+      const existingProducts = await dbService.getAllFromIndex('products', 'barcode', stockItem.barcode);
+      const productData = {
+        name: stockItem.produk,
+        kategori: stockItem.kategori,
+        stock: stockItem.sisaStok,
+        price: stockItem.hargaJual,
+        barcode: stockItem.barcode
+      };
+  
+      if (existingProducts.length > 0) {
+        await dbService.put('products', {
+          ...existingProducts[0],
+          ...productData
+        });
+      } else {
+        await dbService.add('products', productData);
+      }
+  
+      return id;
+    } catch (error) {
+      throw new Error(`Gagal menambahkan stok: ${error.message}`);
+    }
+  }
+  
   async updateStokMasuk(item) {
     const transaction = dbService.db.transaction(
       ['stokMasuk', 'products', 'cashFlow'],

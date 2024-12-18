@@ -6,6 +6,10 @@ import { stockService } from '@/lib/db/StockService';
 import { cashFlowService } from '@/lib/db/CashFlowService';
 import { AddStockDialog, RestockDialog, UpdatePriceDialog, DeleteDialog } from '@/pages/StokMasuk/StockDialogs';
 import { StockTable } from '@/pages/StokMasuk/StockTable';
+import { exportStock } from '../Transactions/excelUtils';
+import { Download, Upload } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { ImportStockDialog } from './StockDialogs';
 
 const StokMasuk = () => {
   const [incomingStock, setIncomingStock] = useState([]);
@@ -18,6 +22,8 @@ const StokMasuk = () => {
   const [isRestockDialogOpen, setIsRestockDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+
   
   // New state for barcode handling
   const [useExistingBarcode, setUseExistingBarcode] = useState(false);
@@ -129,6 +135,25 @@ const StokMasuk = () => {
       alert('Failed to print barcode: ' + error.message);
     }
   };
+
+  
+const handleImportSuccess = async (importedData) => {
+  try {
+    setError(null);
+    // Process each imported row using the new import method
+    for (const stockItem of importedData) {
+      await stockService.addImportedStock(stockItem);
+    }
+    
+    // Reload the stock data
+    await loadStokMasuk();
+    
+    setSuccessMessage(`${importedData.length} item stok berhasil diimport`);
+    setTimeout(() => setSuccessMessage(null), 3000);
+  } catch (err) {
+    setError('Gagal menyimpan data import: ' + err.message);
+  }
+};
 
   const validateForm = () => {
     const errors = {};
@@ -439,32 +464,57 @@ const StokMasuk = () => {
         </Alert>
       )}
 
-      <div className="mb-6 flex justify-between items-center">
-      <AddStockDialog
-        isOpen={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        formData={formData}
-        formErrors={formErrors}
-        error={error}
-        onInputChange={handleInputChange}
-        onSubmit={handleSubmit}
-        useExistingBarcode={useExistingBarcode}
-        onBarcodeChange={handleBarcodeChange}
-        onUseExistingBarcodeChange={setUseExistingBarcode}
-        duplicateProduct={duplicateProduct}
-        onBarcodeConfirm={handleBarcodeConfirm}
-      />
+<div className="mb-6 flex justify-between items-center">
+  <div className="flex gap-2">
+    <AddStockDialog
+      isOpen={isDialogOpen}
+      onOpenChange={setIsDialogOpen}
+      formData={formData}
+      formErrors={formErrors}
+      error={error}
+      onInputChange={handleInputChange}
+      onSubmit={handleSubmit}
+      useExistingBarcode={useExistingBarcode}
+      onBarcodeChange={handleBarcodeChange}
+      onUseExistingBarcodeChange={setUseExistingBarcode}
+      duplicateProduct={duplicateProduct}
+      onBarcodeConfirm={handleBarcodeConfirm}
+    />
+    <Button 
+      variant="outline" 
+      className="flex items-center gap-2"
+      onClick={() => setIsImportDialogOpen(true)}
+    >
+      <Upload className="h-5 w-5" />
+      Import Excel
+    </Button>
+    <Button 
+      variant="outline" 
+      className="flex items-center gap-2"
+      onClick={() => exportStock(incomingStock)}
+    >
+      <Download className="h-5 w-5" />
+      Export Excel
+    </Button>
+  </div>
 
-        <Select onValueChange={handleSort}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Urutkan berdasarkan" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="hargaBeli">Harga Beli</SelectItem>
-            <SelectItem value="hargaJual">Harga Jual</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+  <Select onValueChange={handleSort}>
+    <SelectTrigger className="w-[180px]">
+      <SelectValue placeholder="Urutkan berdasarkan" />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="hargaBeli">Harga Beli</SelectItem>
+      <SelectItem value="hargaJual">Harga Jual</SelectItem>
+    </SelectContent>
+  </Select>
+</div>
+
+{/* Add the Import Dialog */}
+<ImportStockDialog
+  isOpen={isImportDialogOpen}
+  onOpenChange={setIsImportDialogOpen}
+  onImportSuccess={handleImportSuccess}
+/>
 
       <Card>
         <CardHeader className="border-b">

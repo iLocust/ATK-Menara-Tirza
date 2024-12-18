@@ -570,4 +570,209 @@ const exportCashFlow = async (monthlyData, selectedMonth, selectedYear) => {
   window.URL.revokeObjectURL(url);
 };
 
-export { exportSalesReport, exportCombinedReport, exportCashFlow };
+const exportStock = async (stock) => {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Daftar Stok');
+
+  // Title
+  worksheet.mergeCells('A1:H1');
+  worksheet.getCell('A1').value = `Laporan Stok - ${new Date().toLocaleDateString('id-ID')}`;
+  worksheet.getCell('A1').font = { bold: true, size: 14 };
+  worksheet.getCell('A1').alignment = { horizontal: 'center' };
+
+  // Headers
+  const headers = [
+    'Kategori',
+    'Produk',
+    'Sisa Stok',
+    'Harga Beli',
+    'Harga Jual',
+    'Margin (%)',
+    'Barcode',
+    'Tanggal Masuk'
+  ];
+
+  worksheet.getRow(3).values = headers;
+  worksheet.getRow(3).font = { bold: true };
+  worksheet.getRow(3).alignment = { horizontal: 'center' };
+
+  let currentRow = 4;
+
+  // Data rows
+  stock.forEach((item) => {
+    const row = worksheet.getRow(currentRow);
+    row.values = [
+      item.kategori,
+      item.produk,
+      item.sisaStok,
+      item.hargaBeli,
+      item.hargaJual,
+      item.margin,
+      item.barcode,
+      new Date(item.tanggalMasuk).toLocaleDateString('id-ID')
+    ];
+
+    // Formatting
+    row.getCell(1).alignment = { horizontal: 'left' };
+    row.getCell(2).alignment = { horizontal: 'left' };
+    ['C', 'D', 'E', 'F'].forEach(col => {
+      row.getCell(col).numFmt = '#,##0';
+      row.getCell(col).alignment = { horizontal: 'right' };
+    });
+    row.getCell(7).alignment = { horizontal: 'center' };
+    row.getCell(8).alignment = { horizontal: 'center' };
+
+    // Highlight seragam category
+    if (item.kategori.toLowerCase().includes('seragam')) {
+      row.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFFFF00' }
+      };
+    }
+
+    currentRow++;
+  });
+
+  // Summary section
+  currentRow += 2;
+  const totalStock = stock.reduce((sum, item) => sum + item.sisaStok, 0);
+  const totalValue = stock.reduce((sum, item) => sum + (item.hargaBeli * item.sisaStok), 0);
+  
+  const summaryData = [
+    ['Total Jenis Produk', stock.length],
+    ['Total Unit Stok', totalStock],
+    ['Total Nilai Stok', totalValue],
+  ];
+
+  worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+  worksheet.getCell(`A${currentRow}`).value = 'Ringkasan';
+  worksheet.getCell(`A${currentRow}`).font = { bold: true };
+  worksheet.getCell(`A${currentRow}`).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFB4C6E7' }
+  };
+  currentRow++;
+
+  summaryData.forEach(([label, value]) => {
+    worksheet.mergeCells(`A${currentRow}:G${currentRow}`);
+    worksheet.getCell(`A${currentRow}`).value = label;
+    worksheet.getCell(`H${currentRow}`).value = value;
+    worksheet.getCell(`H${currentRow}`).numFmt = '#,##0';
+    worksheet.getRow(currentRow).font = { bold: true };
+    currentRow++;
+  });
+
+  // Set column widths
+  worksheet.columns = [
+    { width: 15 },  // Kategori
+    { width: 35 },  // Produk
+    { width: 12 },  // Sisa Stok
+    { width: 15 },  // Harga Beli
+    { width: 15 },  // Harga Jual
+    { width: 12 },  // Margin
+    { width: 15 },  // Barcode
+    { width: 15 },  // Tanggal Masuk
+  ];
+
+  // Add borders to all cells
+  worksheet.eachRow((row, rowNumber) => {
+    row.eachCell({ includeEmpty: true }, cell => {
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+    });
+  });
+
+  // Generate and download file
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { 
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+  });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Laporan_Stok_${new Date().toLocaleDateString('id-ID')}.xlsx`;
+  a.click();
+  window.URL.revokeObjectURL(url);
+};
+
+const importStock = async (file) => {
+  try {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(file);
+    
+    const worksheet = workbook.getWorksheet('Daftar Stok');
+    if (!worksheet) {
+      throw new Error('Format file tidak valid. Worksheet "Daftar Stok" tidak ditemukan.');
+    }
+
+    // Skip header rows (title and column headers)
+    const dataRows = [];
+    let foundSummarySection = false;
+
+    worksheet.eachRow((row, rowNumber) => {
+      // Skip the first 3 rows (title and headers)
+      if (rowNumber <= 3) return;
+
+      const rowValues = row.values;
+      // Check if we've reached the summary section
+      if (rowValues[1] === 'Ringkasan') {
+        foundSummarySection = true;
+        return;
+      }
+
+      if (!foundSummarySection && rowValues.length > 1) {
+        const [_, kategori, produk, sisaStok, hargaBeli, hargaJual, margin, barcode, tanggalMasuk] = rowValues;
+
+        // Skip rows with missing required data
+        if (!kategori || !produk || !sisaStok || !hargaBeli || !hargaJual) return;
+
+        dataRows.push({
+          kategori: kategori.toString(),
+          produk: produk.toString(),
+          sisaStok: parseInt(sisaStok) || 0,
+          hargaBeli: parseInt(hargaBeli) || 0,
+          hargaJual: parseInt(hargaJual) || 0,
+          margin: parseFloat(margin) || 0,
+          barcode: barcode ? barcode.toString() : '',
+          tanggalMasuk: new Date().toISOString().split('T')[0], // Always use current date for imports
+          isImported: true // Add flag to mark as imported data
+        });
+      }
+    });
+
+    // Validate the data
+    for (const row of dataRows) {
+      if (!['ATK', 'Seragam'].includes(row.kategori)) {
+        throw new Error(`Kategori tidak valid: ${row.kategori}. Harus 'ATK' atau 'Seragam'`);
+      }
+
+      if (row.sisaStok < 0) {
+        throw new Error(`Stok tidak valid untuk produk ${row.produk}: ${row.sisaStok}`);
+      }
+
+      if (row.hargaBeli <= 0 || row.hargaJual <= 0) {
+        throw new Error(`Harga tidak valid untuk produk ${row.produk}`);
+      }
+
+      if (row.margin < 0) {
+        throw new Error(`Margin tidak valid untuk produk ${row.produk}: ${row.margin}`);
+      }
+
+      if (row.barcode && !/^\d{8,13}$/.test(row.barcode)) {
+        throw new Error(`Format barcode tidak valid untuk produk ${row.produk}: ${row.barcode}`);
+      }
+    }
+
+    return dataRows;
+  } catch (error) {
+    throw new Error(`Gagal mengimpor data: ${error.message}`);
+  }
+};
+// Update the exports at the bottom of excelUtils.js
+export { exportSalesReport, exportCombinedReport, exportCashFlow, exportStock, importStock };

@@ -1,13 +1,14 @@
 /* eslint-disable react/prop-types */
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { PlusIcon } from 'lucide-react';
+import { PlusIcon, Upload } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
-
-export const AddStockDialog = ({
+import { importStock } from '../Transactions/excelUtils';
+ const AddStockDialog = ({
   isOpen,
   onOpenChange,
   formData,
@@ -200,7 +201,7 @@ export const AddStockDialog = ({
   );
 };
 
-export const RestockDialog = ({
+ const RestockDialog = ({
   isOpen,
   onOpenChange,
   selectedProduct,
@@ -277,7 +278,7 @@ export const RestockDialog = ({
   );
 };
 
-export const UpdatePriceDialog = ({
+ const UpdatePriceDialog = ({
   isOpen,
   onOpenChange,
   selectedProduct,
@@ -337,7 +338,7 @@ export const UpdatePriceDialog = ({
   );
 };
 
-export const DeleteDialog = ({
+ const DeleteDialog = ({
   isOpen,
   onOpenChange,
   selectedProduct,
@@ -377,3 +378,143 @@ export const DeleteDialog = ({
     </Dialog>
   );
 };
+
+ const ImportStockDialog = ({
+  isOpen,
+  onOpenChange,
+  onImportSuccess
+}) => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+
+  const handleFileChange = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      if (!file.name.endsWith('.xlsx')) {
+        setError('Hanya file Excel (.xlsx) yang diperbolehkan');
+        return;
+      }
+      setSelectedFile(file);
+      setError(null);
+    }
+  };
+
+  const handleImport = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      if (!selectedFile) {
+        setError('Pilih file terlebih dahulu');
+        return;
+      }
+
+      const importedData = await importStock(selectedFile);
+      await onImportSuccess(importedData);
+      
+      // Reset the form
+      setSelectedFile(null);
+      onOpenChange(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open) {
+        setSelectedFile(null);
+        setError(null);
+      }
+      onOpenChange(open);
+    }}>
+      <DialogContent className="max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle>Import Data Stok</DialogTitle>
+        </DialogHeader>
+
+        <div className="py-4 px-6">
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="space-y-4">
+            <div className="border-2 border-dashed border-gray-200 rounded-lg p-6">
+              <div className="flex flex-col items-center">
+                <Upload className="h-8 w-8 text-gray-400 mb-2" />
+                <p className="text-sm text-gray-600 mb-2 text-center">
+                  Pilih file Excel (.xlsx) atau drag & drop di sini
+                </p>
+                <p className="text-xs text-gray-500 mb-4 text-center">
+                  Pastikan format file sesuai dengan format export
+                </p>
+                <input
+                  type="file"
+                  accept=".xlsx"
+                  onChange={handleFileChange}
+                  className="block w-full text-sm text-gray-500
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-full file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-blue-50 file:text-blue-700
+                    hover:file:bg-blue-100
+                    cursor-pointer"
+                />
+              </div>
+            </div>
+
+            {selectedFile && (
+              <div className="bg-gray-50 p-3 rounded-md">
+                <p className="text-sm text-gray-600">
+                  File terpilih: {selectedFile.name}
+                </p>
+              </div>
+            )}
+
+            <div className="text-sm text-gray-500 space-y-1">
+              <p className="font-medium">Petunjuk Import:</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Gunakan template dari hasil export untuk format yang benar</li>
+                <li>Kategori harus 'ATK' atau 'Seragam'</li>
+                <li>Semua kolom harus diisi kecuali barcode</li>
+                <li>Harga dan jumlah harus lebih dari 0</li>
+                <li>Margin tidak boleh negatif</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="px-6">
+          <div className="flex justify-end gap-2 w-full">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setSelectedFile(null);
+                setError(null);
+                onOpenChange(false);
+              }}
+              disabled={isLoading}
+            >
+              Batal
+            </Button>
+            <Button 
+              onClick={handleImport} 
+              disabled={!selectedFile || isLoading}
+              className="flex items-center gap-2"
+            >
+              {isLoading ? 'Mengimport...' : 'Import'}
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Export all dialogs
+export { AddStockDialog, RestockDialog, UpdatePriceDialog, DeleteDialog, ImportStockDialog };
