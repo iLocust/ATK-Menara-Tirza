@@ -84,8 +84,8 @@ const Products = () => {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Katalog Produk Koperasi</h1>
-        <p className="text-gray-600 mt-1">Temukan berbagai kebutuhan sekolah Anda di sini</p>
+        <h1 className="text-2xl font-bold text-white">Katalog Produk Koperasi</h1>
+        <p className="text-gray-300 mt-1">Temukan berbagai kebutuhan sekolah Anda di sini</p>
       </div>
 
       {error && (

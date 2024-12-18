@@ -4,7 +4,7 @@ import { Link } from "react-router-dom"; // Add this import
 
 const Navbar = ({ onMenuClick }) => {
   return (
-    <nav className="bg-red-700 shadow-sm">
+    <nav className="bg-[#e21c20] shadow-sm">
       <div className="px-4">
         <div className="flex h-20 items-center justify-between">
           <div className="flex items-center">

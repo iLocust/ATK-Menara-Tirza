@@ -479,8 +479,8 @@ const handleBarcodeUpdate = async (productId, newBarcode) => {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Stok Masuk</h1>
-        <p className="text-gray-600 mt-1">Kelola stok masuk dan atur harga jual produk</p>
+        <h1 className="text-2xl font-bold text-white">Stok Masuk</h1>
+        <p className="text-gray-300 mt-1">Kelola stok masuk dan atur harga jual produk</p>
       </div>
 
       {successMessage && (

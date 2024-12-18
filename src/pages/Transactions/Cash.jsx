@@ -233,8 +233,8 @@ const UnifiedCashManagement = () => {
     <div className="p-4">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Manajemen Kas Koperasi</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-2xl font-bold text-white">Manajemen Kas Koperasi</h1>
+          <p className="text-white mt-1">
             {months.find(m => m.value === selectedMonth)?.label} {selectedYear}
           </p>
         </div>
