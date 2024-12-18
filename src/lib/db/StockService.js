@@ -193,42 +193,82 @@ class StockService {
  
   async addImportedStock(stockItem) {
     try {
-      // Skip cash flow operations for imported items
-      if (!stockItem.isImported) {
-        return this.addStokMasuk(stockItem); // Use normal process for non-imported items
-      }
+      const transaction = dbService.db.transaction(
+        ['stokMasuk', 'products', 'cashFlow'],
+        'readwrite'
+      );
   
-      // For imported items, just add to database without cash flow
-      const id = await dbService.add('stokMasuk', {
-        ...stockItem,
-        jumlah: stockItem.sisaStok, // Set initial jumlah same as sisaStok for imports
+      return new Promise((resolve, reject) => {
+        transaction.onerror = () => reject('Transaction failed');
+        transaction.oncomplete = async () => {
+          try {
+            await cashFlowService.updateMonthlyBalance(stockItem.tanggalMasuk);
+            resolve('Transaction completed');
+          } catch (error) {
+            reject('Failed to update monthly balance');
+          }
+        };
+  
+        try {
+          // Add to stokMasuk store
+          const stokMasukStore = transaction.objectStore('stokMasuk');
+          const stokRequest = stokMasukStore.add({
+            ...stockItem,
+            sisaStok: stockItem.sisaStok,
+            jumlah: stockItem.sisaStok // Set initial jumlah same as sisaStok for imports
+          });
+  
+          stokRequest.onsuccess = () => {
+            // Update or create product record
+            const productsStore = transaction.objectStore('products');
+            const getProductRequest = productsStore.index('name').get(stockItem.produk);
+  
+            getProductRequest.onsuccess = () => {
+              const existingProduct = getProductRequest.result;
+              const productData = {
+                name: stockItem.produk,
+                kategori: stockItem.kategori,
+                stock: stockItem.sisaStok + (existingProduct ? existingProduct.stock : 0),
+                price: stockItem.hargaJual,
+                barcode: stockItem.barcode
+              };
+  
+              if (existingProduct) {
+                productsStore.put({
+                  ...existingProduct,
+                  ...productData
+                });
+              } else {
+                productsStore.add(productData);
+              }
+  
+              // Add cash flow record for the imported stock
+              const cashFlowStore = transaction.objectStore('cashFlow');
+              cashFlowStore.add({
+                type: 'expense',
+                paymentMethod: 'cash',
+                amount: stockItem.hargaBeli * stockItem.sisaStok,
+                description: `[Stock Import] - ${stockItem.produk} (${stockItem.sisaStok} unit)`,
+                date: stockItem.tanggalMasuk,
+                timestamp: new Date().getTime(),
+                purchaseId: stokRequest.result,
+                details: {
+                  productName: stockItem.produk,
+                  quantity: stockItem.sisaStok,
+                  pricePerUnit: stockItem.hargaBeli,
+                  barcode: stockItem.barcode
+                }
+              });
+            };
+          };
+        } catch (error) {
+          reject(error);
+        }
       });
-  
-      // Update or create product record
-      const existingProducts = await dbService.getAllFromIndex('products', 'barcode', stockItem.barcode);
-      const productData = {
-        name: stockItem.produk,
-        kategori: stockItem.kategori,
-        stock: stockItem.sisaStok,
-        price: stockItem.hargaJual,
-        barcode: stockItem.barcode
-      };
-  
-      if (existingProducts.length > 0) {
-        await dbService.put('products', {
-          ...existingProducts[0],
-          ...productData
-        });
-      } else {
-        await dbService.add('products', productData);
-      }
-  
-      return id;
     } catch (error) {
       throw new Error(`Gagal menambahkan stok: ${error.message}`);
     }
   }
-  
   async updateStokMasuk(item) {
     const transaction = dbService.db.transaction(
       ['stokMasuk', 'products', 'cashFlow'],
