@@ -332,7 +332,7 @@ const Pembayaran = () => {
           <CardHeader className="border-b bg-white">
             <CardTitle className="flex items-center gap-2 text-gray-800">
               <Receipt className="h-5 w-5 text-primary" />
-              Ringkasan Pesanan
+              Ringkasan Pesananx
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
