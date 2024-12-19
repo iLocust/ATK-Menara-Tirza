@@ -381,7 +381,7 @@ const Pembayaran = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
-            <div className="space-y-4">
+            <div className="space-y-4 ">
               <div className="grid grid-cols-1 gap-3">
                 {paymentMethods.map((method) => {
                   const Icon = method.icon;
@@ -526,7 +526,7 @@ const Pembayaran = () => {
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    <CheckCircle2 className="mr-2 h-5 w-5" />
                     Selesaikan Pembayaran
                   </>
                 )}
