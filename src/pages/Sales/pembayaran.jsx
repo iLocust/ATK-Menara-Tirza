@@ -201,8 +201,8 @@ const Pembayaran = () => {
           receipt += createLabelWithDots('Kembali', change.toLocaleString()) + '\n';
         } else {
           receipt += createLabelWithDots('Transfer', subtotal.toLocaleString()) + '\n';
-          receipt += 'Rek BCA: 1234-5678-9012\n';
-          receipt += 'a.n Koperasi ATK\n';
+          receipt += 'Rek BCA: 8830989898\n';
+          receipt += 'a.n Ekatina Harimuliawati\n';
         }
         
         // Footer
@@ -332,7 +332,7 @@ const Pembayaran = () => {
           <CardHeader className="border-b bg-white">
             <CardTitle className="flex items-center gap-2 text-gray-800">
               <Receipt className="h-5 w-5 text-primary" />
-              Ringkasan Pesananx
+              Ringkasan Pesanan
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
@@ -496,8 +496,8 @@ const Pembayaran = () => {
                         <Building2 className="w-8 h-8 text-primary" />
                       </div>
                       <p className="font-semibold mb-1 text-gray-800">Transfer ke rekening:</p>
-                      <p className="text-xl font-mono bg-gray-50 p-2 rounded text-gray-800">1234-5678-9012</p>
-                      <p className="text-sm text-gray-600 mt-2">a.n. Koperasi ATK</p>
+                      <p className="text-xl font-mono bg-gray-50 p-2 rounded text-gray-800">BCA - 8830989898</p>
+                      <p className="text-sm text-gray-600 mt-2">a.n. Ekatina Harimuliawati</p>
                     </div>
                     <div className="border-t pt-4 text-center">
                       <p className="font-semibold mb-1 text-gray-800">Total Pembayaran</p>
