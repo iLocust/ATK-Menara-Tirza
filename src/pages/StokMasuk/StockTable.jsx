@@ -249,7 +249,7 @@ const ActionDialog = ({
               <div className="bg-green-50 hover:bg-green-100 rounded-xl p-4 mb-2 transition-all duration-200 ease-in-out shadow-sm hover:shadow-md">
                 <PencilIcon className="h-7 w-7 text-green-600" strokeWidth={1.5} />
               </div>
-              <span className="text-sm font-medium text-gray-700">Update Harga</span>
+              <span className="text-sm font-medium text-gray-700">Update Produk</span>
             </div>
             <div
               className="flex flex-col items-center cursor-pointer"

@@ -334,8 +334,10 @@ const UpdatePriceDialog = ({
   onOpenChange,
   selectedProduct,
   formData,
+  formErrors,
   onInputChange,
-  onSubmit
+  onSubmit,
+  error
 }) => {
   if (!selectedProduct) return null;
 
@@ -343,12 +345,31 @@ const UpdatePriceDialog = ({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Update Harga Jual</DialogTitle>
+          <DialogTitle>Update Harga Jual & Nama Produk</DialogTitle>
         </DialogHeader>
 
         <div className="grid gap-4 py-4 px-6">
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
           <div className="space-y-2">
-            <h3 className="font-medium text-black">{selectedProduct.produk}</h3>
+            <div className="space-y-1.5">
+              <label className="text-sm text-gray-600 font-medium">
+                Nama Produk<span className="text-red-500">*</span>
+              </label>
+              <Input
+                value={formData.produk}
+                onChange={(e) => onInputChange('produk', e.target.value)}
+                className={`font-medium ${formErrors?.produk ? 'border-red-500' : ''}`}
+                placeholder="Nama produk"
+              />
+              {formErrors?.produk && (
+                <p className="text-xs text-red-500 mt-1">{formErrors.produk}</p>
+              )}
+            </div>
             <p className="text-sm text-gray-500">
               Harga Beli: Rp {selectedProduct.hargaBeli.toLocaleString()}
             </p>
@@ -359,23 +380,33 @@ const UpdatePriceDialog = ({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-sm text-gray-600 font-medium">Margin (%)</label>
+              <label className="text-sm text-gray-600 font-medium">
+                Margin (%)<span className="text-red-500">*</span>
+              </label>
               <Input
                 type="number"
                 value={formData.margin}
                 onChange={(e) => onInputChange('margin', e.target.value)}
-                className="text-right"
+                className={`text-right ${formErrors?.margin ? 'border-red-500' : ''}`}
               />
+              {formErrors?.margin && (
+                <p className="text-xs text-red-500 mt-1">{formErrors.margin}</p>
+              )}
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm text-gray-600 font-medium">Harga Jual</label>
+              <label className="text-sm text-gray-600 font-medium">
+                Harga Jual<span className="text-red-500">*</span>
+              </label>
               <Input
                 type="number"
                 value={formData.hargaJual}
                 onChange={(e) => onInputChange('hargaJual', e.target.value)}
-                className="text-right"
+                className={`text-right ${formErrors?.hargaJual ? 'border-red-500' : ''}`}
               />
+              {formErrors?.hargaJual && (
+                <p className="text-xs text-red-500 mt-1">{formErrors.hargaJual}</p>
+              )}
             </div>
           </div>
         </div>

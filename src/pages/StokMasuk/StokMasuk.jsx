@@ -4,12 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { stockService } from '@/lib/db/StockService';
 import { cashFlowService } from '@/lib/db/CashFlowService';
-import { AddStockDialog, RestockDialog, UpdatePriceDialog, DeleteDialog } from '@/pages/StokMasuk/StockDialogs';
+import { AddStockDialog, RestockDialog, UpdatePriceDialog, DeleteDialog, ImportStockDialog } from '@/pages/StokMasuk/StockDialogs';
 import { StockTable } from '@/pages/StokMasuk/StockTable';
 import { exportStock } from '../Transactions/excelUtils';
 import { Download, Upload } from 'lucide-react';
 import { Button } from "@/components/ui/button";
-import { ImportStockDialog } from './StockDialogs';
 
 const StokMasuk = () => {
   const [incomingStock, setIncomingStock] = useState([]);
@@ -23,9 +22,13 @@ const StokMasuk = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [updatePriceFormErrors, setUpdatePriceFormErrors] = useState({
+    produk: '',
+    margin: '',
+    hargaJual: ''
+  });
 
-  
-  // New state for barcode handling
+  // State for barcode handling
   const [useExistingBarcode, setUseExistingBarcode] = useState(false);
   const [barcode, setBarcode] = useState('');
   const [duplicateProduct, setDuplicateProduct] = useState(null);
@@ -96,13 +99,23 @@ const StokMasuk = () => {
     }
   };
 
+  const handleBarcodeUpdate = async (productId, newBarcode) => {
+    try {
+      await stockService.updateBarcode(productId, newBarcode);
+      await loadStokMasuk();
+      setSuccessMessage('Barcode berhasil diperbarui');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Gagal memperbarui barcode: ' + err.message);
+    }
+  };
+
   const handleBarcodeConfirm = () => {
     setForceContinue(true);
     setDuplicateProduct(null);
     setError(null);
   };
 
- 
   const handlePrintBarcode = (barcode, productName) => {
     try {
       const createBarcodeText = () => {
@@ -150,35 +163,19 @@ const StokMasuk = () => {
     }
   };
 
-  
-const handleImportSuccess = async (importedData) => {
-  try {
-    setError(null);
-    // Process each imported row using the new import method
-    for (const stockItem of importedData) {
-      await stockService.addImportedStock(stockItem);
+  const handleImportSuccess = async (importedData) => {
+    try {
+      setError(null);
+      for (const stockItem of importedData) {
+        await stockService.addImportedStock(stockItem);
+      }
+      await loadStokMasuk();
+      setSuccessMessage(`${importedData.length} item stok berhasil diimport`);
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Gagal menyimpan data import: ' + err.message);
     }
-    
-    // Reload the stock data
-    await loadStokMasuk();
-    
-    setSuccessMessage(`${importedData.length} item stok berhasil diimport`);
-    setTimeout(() => setSuccessMessage(null), 3000);
-  } catch (err) {
-    setError('Gagal menyimpan data import: ' + err.message);
-  }
-};
-
-const handleBarcodeUpdate = async (productId, newBarcode) => {
-  try {
-    await stockService.updateBarcode(productId, newBarcode);
-    await loadStokMasuk(); // Refresh data setelah update berhasil
-    setSuccessMessage('Barcode berhasil diperbarui');
-    setTimeout(() => setSuccessMessage(null), 3000);
-  } catch (err) {
-    setError('Gagal memperbarui barcode: ' + err.message);
-  }
-};
+  };
 
   const validateForm = () => {
     const errors = {};
@@ -242,6 +239,40 @@ const handleBarcodeUpdate = async (productId, newBarcode) => {
     return isValid;
   };
 
+  const validateUpdatePriceForm = () => {
+    const errors = {};
+    let isValid = true;
+
+    // Validate product name
+    if (!formData.produk?.trim()) {
+      errors.produk = 'Nama produk harus diisi';
+      isValid = false;
+    }
+
+    // Validate margin
+    if (!formData.margin || parseFloat(formData.margin) <= 0) {
+      errors.margin = 'Margin harus lebih dari 0';
+      isValid = false;
+    }
+
+    // Validate selling price
+    if (!formData.hargaJual || parseInt(formData.hargaJual) <= 0) {
+      errors.hargaJual = 'Harga jual harus lebih dari 0';
+      isValid = false;
+    }
+
+    const hargaJual = parseInt(formData.hargaJual);
+    const hargaBeli = selectedProduct ? selectedProduct.hargaBeli : 0;
+
+    if (hargaJual <= hargaBeli) {
+      errors.hargaJual = 'Harga jual harus lebih besar dari harga beli';
+      isValid = false;
+    }
+
+    setUpdatePriceFormErrors(errors);
+    return isValid;
+  };
+
   const handleInputChange = (field, value) => {
     setFormData(prev => {
       const newData = { ...prev, [field]: value };
@@ -276,25 +307,26 @@ const handleBarcodeUpdate = async (productId, newBarcode) => {
     if (formErrors[field]) {
       setFormErrors(prev => ({ ...prev, [field]: '' }));
     }
+    if (updatePriceFormErrors[field]) {
+      setUpdatePriceFormErrors(prev => ({ ...prev, [field]: '' }));
+    }
   };
 
   const handleSubmit = async () => {
     try {
       setError(null);
-  
-      // Jika ada duplicate dan belum di-confirm, validate form akan menangani error
       if (!validateForm()) {
         return;
       }
-  
+
       const totalCost = parseInt(formData.hargaBeli) * parseInt(formData.jumlah);
       const hasSufficientCash = await cashFlowService.checkCashAvailability(totalCost);
-  
+
       if (!hasSufficientCash) {
         setError('Saldo kas tidak mencukupi untuk pembelian stok ini');
         return;
       }
-  
+
       const newStock = {
         produk: formData.produk,
         kategori: formData.kategori,
@@ -306,11 +338,10 @@ const handleBarcodeUpdate = async (productId, newBarcode) => {
         sisaStok: parseInt(formData.jumlah),
         barcode: useExistingBarcode ? formData.barcode : stockService.generateBarcode()
       };
-  
+
       await stockService.addStokMasuk(newStock, forceContinue);
       await loadStokMasuk();
-  
-      // Reset semua state
+
       setFormData({
         produk: '',
         kategori: '',
@@ -327,10 +358,9 @@ const handleBarcodeUpdate = async (productId, newBarcode) => {
       setBarcode('');
       setDuplicateProduct(null);
       setForceContinue(false);
-  
+
       setSuccessMessage('Stok berhasil ditambahkan');
       setTimeout(() => setSuccessMessage(null), 3000);
-  
     } catch (err) {
       setError('Gagal menambah data: ' + err.message);
     }
@@ -381,7 +411,6 @@ const handleBarcodeUpdate = async (productId, newBarcode) => {
 
       setSuccessMessage('Stok berhasil diperbarui');
       setTimeout(() => setSuccessMessage(null), 3000);
-
     } catch (err) {
       setError('Gagal memperbarui stok: ' + err.message);
     }
@@ -390,18 +419,31 @@ const handleBarcodeUpdate = async (productId, newBarcode) => {
   const handleUpdatePrice = async () => {
     try {
       setError(null);
+      
+      // Validate form before proceeding
+      if (!validateUpdatePriceForm()) {
+        return;
+      }
+
       const updatedProduct = {
         ...selectedProduct,
+        oldProduk: selectedProduct.produk,
+        produk: formData.produk.trim(),
         hargaJual: parseFloat(formData.hargaJual),
         margin: parseFloat(formData.margin)
       };
 
       await stockService.updateStokMasuk(updatedProduct);
       await loadStokMasuk();
+      
+      // Reset form and close dialog
       setIsUpdatePriceDialogOpen(false);
       setSelectedProduct(null);
+      setUpdatePriceFormErrors({});
+      setSuccessMessage('Data produk berhasil diperbarui');
+      setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
-      setError('Gagal mengupdate harga: ' + err.message);
+      setError('Gagal mengupdate data: ' + err.message);
     }
   };
 
@@ -436,10 +478,13 @@ const handleBarcodeUpdate = async (productId, newBarcode) => {
     setSelectedProduct(product);
     setFormData({
       ...formData,
+      produk: product.produk,
       hargaBeli: product.hargaBeli,
       hargaJual: product.hargaJual,
       margin: product.margin
     });
+    setUpdatePriceFormErrors({}); // Reset form errors
+    setError(null); // Reset general error
     setIsUpdatePriceDialogOpen(true);
   };
 
@@ -489,57 +534,56 @@ const handleBarcodeUpdate = async (productId, newBarcode) => {
         </Alert>
       )}
 
-<div className="mb-6 flex justify-between items-center">
-  <div className="flex gap-2">
-    <AddStockDialog
-      isOpen={isDialogOpen}
-      onOpenChange={setIsDialogOpen}
-      formData={formData}
-      formErrors={formErrors}
-      error={error}
-      onInputChange={handleInputChange}
-      onSubmit={handleSubmit}
-      useExistingBarcode={useExistingBarcode}
-      onBarcodeChange={handleBarcodeChange}
-      onUseExistingBarcodeChange={setUseExistingBarcode}
-      duplicateProduct={duplicateProduct}
-      onBarcodeConfirm={handleBarcodeConfirm}
-    />
-    <Button 
-      variant="outline" 
-      className="flex items-center gap-2"
-      onClick={() => setIsImportDialogOpen(true)}
-    >
-      <Upload className="h-5 w-5" />
-      Import Excel
-    </Button>
-    <Button 
-      variant="outline" 
-      className="flex items-center gap-2"
-      onClick={() => exportStock(incomingStock)}
-    >
-      <Download className="h-5 w-5" />
-      Export Excel
-    </Button>
-  </div>
+      <div className="mb-6 flex justify-between items-center">
+        <div className="flex gap-2">
+          <AddStockDialog
+            isOpen={isDialogOpen}
+            onOpenChange={setIsDialogOpen}
+            formData={formData}
+            formErrors={formErrors}
+            error={error}
+            onInputChange={handleInputChange}
+            onSubmit={handleSubmit}
+            useExistingBarcode={useExistingBarcode}
+            onBarcodeChange={handleBarcodeChange}
+            onUseExistingBarcodeChange={setUseExistingBarcode}
+            duplicateProduct={duplicateProduct}
+            onBarcodeConfirm={handleBarcodeConfirm}
+          />
+          <Button 
+            variant="outline" 
+            className="flex items-center gap-2"
+            onClick={() => setIsImportDialogOpen(true)}
+          >
+            <Upload className="h-5 w-5" />
+            Import Excel
+          </Button>
+          <Button 
+            variant="outline" 
+            className="flex items-center gap-2"
+            onClick={() => exportStock(incomingStock)}
+          >
+            <Download className="h-5 w-5" />
+            Export Excel
+          </Button>
+        </div>
 
-  <Select onValueChange={handleSort}>
-    <SelectTrigger className="w-[180px]">
-      <SelectValue placeholder="Urutkan berdasarkan" />
-    </SelectTrigger>
-    <SelectContent>
-      <SelectItem value="hargaBeli">Harga Beli</SelectItem>
-      <SelectItem value="hargaJual">Harga Jual</SelectItem>
-    </SelectContent>
-  </Select>
-</div>
+        <Select onValueChange={handleSort}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Urutkan berdasarkan" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="hargaBeli">Harga Beli</SelectItem>
+            <SelectItem value="hargaJual">Harga Jual</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-{/* Add the Import Dialog */}
-<ImportStockDialog
-  isOpen={isImportDialogOpen}
-  onOpenChange={setIsImportDialogOpen}
-  onImportSuccess={handleImportSuccess}
-/>
+      <ImportStockDialog
+        isOpen={isImportDialogOpen}
+        onOpenChange={setIsImportDialogOpen}
+        onImportSuccess={handleImportSuccess}
+      />
 
       <Card>
         <CardHeader className="border-b">
@@ -550,14 +594,14 @@ const handleBarcodeUpdate = async (productId, newBarcode) => {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-          <StockTable
-  stock={getSortedData()}
-  onRestock={openRestockDialog}
-  onUpdatePrice={openUpdatePriceDialog}
-  onDelete={openDeleteDialog}
-  onPrintBarcode={(barcode, productName) => handlePrintBarcode(barcode, productName)}
-  onBarcodeUpdate={handleBarcodeUpdate}
-/>
+            <StockTable
+              stock={getSortedData()}
+              onRestock={openRestockDialog}
+              onUpdatePrice={openUpdatePriceDialog}
+              onDelete={openDeleteDialog}
+              onPrintBarcode={(barcode, productName) => handlePrintBarcode(barcode, productName)}
+              onBarcodeUpdate={handleBarcodeUpdate}
+            />
           </div>
         </CardContent>
       </Card>
@@ -576,6 +620,8 @@ const handleBarcodeUpdate = async (productId, newBarcode) => {
         onOpenChange={setIsUpdatePriceDialogOpen}
         selectedProduct={selectedProduct}
         formData={formData}
+        formErrors={updatePriceFormErrors}
+        error={error}
         onInputChange={handleInputChange}
         onSubmit={handleUpdatePrice}
       />

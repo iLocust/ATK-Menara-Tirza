@@ -269,75 +269,88 @@ class StockService {
       throw new Error(`Gagal menambahkan stok: ${error.message}`);
     }
   }
-  async updateStokMasuk(item) {
-    const transaction = dbService.db.transaction(
-      ['stokMasuk', 'products', 'cashFlow'],
-      'readwrite'
-    );
- 
-    return new Promise((resolve, reject) => {
-      transaction.onerror = () => reject('Transaction failed');
-      transaction.oncomplete = async () => {
-        try {
-          await cashFlowService.updateMonthlyBalance(item.tanggalMasuk);
-          resolve('Transaction completed');
-        } catch (error) {
-          reject('Failed to update monthly balance');
-        }
-      };
- 
+
+ async updateStokMasuk(item) {
+  const transaction = dbService.db.transaction(
+    ['stokMasuk', 'products', 'cashFlow'],
+    'readwrite'
+  );
+
+  return new Promise((resolve, reject) => {
+    transaction.onerror = () => reject('Transaction failed');
+    transaction.oncomplete = async () => {
       try {
-        const stokMasukStore = transaction.objectStore('stokMasuk');
+        await cashFlowService.updateMonthlyBalance(item.tanggalMasuk);
+        resolve('Transaction completed');
+      } catch (error) {
+        reject('Failed to update monthly balance');
+      }
+    };
+
+    try {
+      const stokMasukStore = transaction.objectStore('stokMasuk');
+      const productsStore = transaction.objectStore('products');
+
+      // First get the existing product to check if name changed
+      const getOldProductRequest = productsStore.index('name').get(item.oldProduk || item.produk);
+
+      getOldProductRequest.onsuccess = () => {
+        const existingProduct = getOldProductRequest.result;
+        
+        // Update stokMasuk record
         const stokRequest = stokMasukStore.put(item);
- 
+
         stokRequest.onsuccess = () => {
-          const productsStore = transaction.objectStore('products');
-          const getProductRequest = productsStore.index('name').get(item.produk);
- 
-          getProductRequest.onsuccess = () => {
-            const existingProduct = getProductRequest.result;
-            const productData = {
-              name: item.produk,
-              kategori: item.kategori,
-              price: item.hargaJual,
-              stock: existingProduct ? existingProduct.stock + item.jumlah : item.jumlah,
-              barcode: item.barcode
-            };
- 
-            if (existingProduct) {
+          if (existingProduct) {
+            // If name changed, create new product record and delete old one
+            if (item.oldProduk && item.oldProduk !== item.produk) {
+              productsStore.delete(existingProduct.id);
+              
+              const productData = {
+                name: item.produk,
+                kategori: item.kategori,
+                price: item.hargaJual,
+                stock: existingProduct.stock,
+                barcode: item.barcode
+              };
+              
+              productsStore.add(productData);
+            } else {
+              // Just update existing product
               productsStore.put({
                 ...existingProduct,
-                ...productData
-              });
-            } else {
-              productsStore.add(productData);
-            }
- 
-            if (item.restockAmount && item.restockAmount > 0) {
-              const cashFlowStore = transaction.objectStore('cashFlow');
-              cashFlowStore.add({
-                type: 'expense',
-                paymentMethod: 'cash',
-                amount: item.hargaBeli * item.restockAmount,
-                description: `[Restock] - ${item.produk} (${item.restockAmount} unit)`,
-                date: item.tanggalMasuk,
-                timestamp: new Date().getTime(),
-                purchaseId: item.id,
-                details: {
-                  productName: item.produk,
-                  quantity: item.restockAmount,
-                  pricePerUnit: item.hargaBeli,
-                  barcode: item.barcode
-                }
+                name: item.produk,
+                price: item.hargaJual
               });
             }
-          };
+          }
+
+          // Handle restock if needed
+          if (item.restockAmount && item.restockAmount > 0) {
+            const cashFlowStore = transaction.objectStore('cashFlow');
+            cashFlowStore.add({
+              type: 'expense',
+              paymentMethod: 'cash',
+              amount: item.hargaBeli * item.restockAmount,
+              description: `[Restock] - ${item.produk} (${item.restockAmount} unit)`,
+              date: item.tanggalMasuk,
+              timestamp: new Date().getTime(),
+              purchaseId: item.id,
+              details: {
+                productName: item.produk,
+                quantity: item.restockAmount,
+                pricePerUnit: item.hargaBeli,
+                barcode: item.barcode
+              }
+            });
+          }
         };
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }
+      };
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
  
   async deleteStokMasuk(id) {
     const item = await dbService.get('stokMasuk', id);

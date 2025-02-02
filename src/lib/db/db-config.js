@@ -25,7 +25,7 @@ export const DB_CONFIG = {
         { name: 'barcode', keyPath: 'barcode', options: { unique: false } } // Changed to false
       ]
     },
-    // ... rest of the stores remain unchanged
+
     transaksi: {
       name: 'transaksi',
       keyPath: 'id',
