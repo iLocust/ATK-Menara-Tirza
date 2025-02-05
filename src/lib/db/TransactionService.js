@@ -1,4 +1,3 @@
-// TransactionService.js
 import { dbService } from './db-service';
 import { cashFlowService } from './CashFlowService';
 
@@ -55,7 +54,9 @@ class TransactionService {
           paymentMethod: transactionData.paymentMethod,
           status: transactionData.status,
           cashAmount: transactionData.cashAmount,
-          change: transactionData.change
+          change: transactionData.change,
+          isInternal: transactionData.isInternal,
+          internalNumber: transactionData.isInternal ? transactionData.internalNumber : null
         });
 
         cart.forEach(async (item) => {

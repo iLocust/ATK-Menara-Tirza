@@ -1,179 +1,215 @@
 import ExcelJS from 'exceljs';
 
 const exportSalesReport = async (dailyGroups) => {
-    const workbook = new ExcelJS.Workbook();
-    const dateParts = dailyGroups[0].date.split('/');
-    const monthNumber = dateParts[1];  // Get the month part
-    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
-                   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-    const monthName = months[parseInt(monthNumber) - 1];  // Adjust for 0-based array
+  const workbook = new ExcelJS.Workbook();
+  const dateParts = dailyGroups[0].date.split('/');
+  const monthNumber = dateParts[1];  // Get the month part
+  const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
+                 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  const monthName = months[parseInt(monthNumber) - 1];  // Adjust for 0-based array
+  
+  const worksheet = workbook.addWorksheet(`Penjualan - ${monthName}`);
+  let currentRow = 1;
+  
+  for (const dayData of dailyGroups) {
+    worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+    worksheet.getCell(`A${currentRow}`).value = `Penjualan Per ${dayData.date}`;
+    worksheet.getCell(`A${currentRow}`).font = { bold: true, size: 15 };
+    worksheet.getCell(`A${currentRow}`).alignment = { horizontal: 'center' };
     
-    const worksheet = workbook.addWorksheet(`Penjualan - ${monthName}`);
-    let currentRow = 1;
+    currentRow++;
+    const headerRow = worksheet.getRow(currentRow);
+    headerRow.values = ['Nama Produk', 'Kategori', 'Jumlah', 'Harga', 'Penjualan', 'Subtotal', 'Metode', 'Jenis'];
+    headerRow.font = { bold: true };
+    headerRow.eachCell((cell, colNumber) => {
+      if (colNumber === 1) {
+        cell.alignment = { horizontal: 'left' };
+      } else {
+        cell.alignment = { horizontal: 'center' };
+      }
+    });
+
+    currentRow++;
+    let totalQty = 0;
+    let totalPrice = 0;
+    let totalSales = 0;
+    let totalSubtotal = 0;
+    let internalTotal = 0;
+    let internalCount = 0;
     
-    for (const dayData of dailyGroups) {
-      worksheet.mergeCells(`A${currentRow}:G${currentRow}`);
-      worksheet.getCell(`A${currentRow}`).value = `Penjualan Per ${dayData.date}`;
-      worksheet.getCell(`A${currentRow}`).font = { bold: true, size: 15 };
-      worksheet.getCell(`A${currentRow}`).alignment = { horizontal: 'center' };
-      
-      currentRow++;
-      const headerRow = worksheet.getRow(currentRow);
-      headerRow.values = ['Nama Produk', 'Kategori', 'Jumlah', 'Harga', 'Penjualan', 'Subtotal', 'Metode'];
-      headerRow.font = { bold: true };
-      headerRow.eachCell((cell, colNumber) => {
-        if (colNumber === 1) {
-          cell.alignment = { horizontal: 'left' };
-        } else {
+    dayData.transactions.forEach(transaction => {
+      const startRow = currentRow;
+      transaction.items.forEach((item, idx) => {
+        const row = worksheet.getRow(currentRow);
+        row.values = [
+          item.name,
+          item.kategori,
+          item.quantity,
+          item.price,
+          item.price * item.quantity,
+          '', 
+          '',
+          ''
+        ];
+
+        totalQty += item.quantity;
+        totalPrice += item.price;
+        totalSales += (item.price * item.quantity);
+
+        row.getCell('A').alignment = { horizontal: 'left' };
+        ['B', 'C', 'D', 'E'].forEach(col => {
+          const cell = row.getCell(col);
+          cell.numFmt = '#,##0';
           cell.alignment = { horizontal: 'center' };
+        });
+
+        if (item.kategori.toLowerCase().includes('seragam')) {
+          row.getCell('B').fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFFF00' }
+          };
         }
-      });
-  
-      currentRow++;
-      let totalQty = 0;
-      let totalPrice = 0;
-      let totalSales = 0;
-      let totalSubtotal = 0;
-      
-      dayData.transactions.forEach(transaction => {
-        const startRow = currentRow;
-        transaction.items.forEach((item, idx) => {
-          const row = worksheet.getRow(currentRow);
-          row.values = [
-            item.name,
-            item.kategori,
-            item.quantity,
-            item.price,
-            item.price * item.quantity,
-            '', 
-            ''
-          ];
-  
-          totalQty += item.quantity;
-          totalPrice += item.price;
-          totalSales += (item.price * item.quantity);
-  
-          row.getCell('A').alignment = { horizontal: 'left' };
-          ['B', 'C', 'D', 'E'].forEach(col => {
-            const cell = row.getCell(col);
-            cell.numFmt = '#,##0';
-            cell.alignment = { horizontal: 'center' };
-          });
-  
-          if (item.kategori.toLowerCase().includes('seragam')) {
-            row.getCell('B').fill = {
+
+        // Highlight internal purchases
+        if (transaction.isInternal) {
+          row.eachCell((cell) => {
+            cell.fill = {
               type: 'pattern',
               pattern: 'solid',
-              fgColor: { argb: 'FFFFFF00' }
-            };
-          }
-          currentRow++;
-        });
-  
-        if (transaction.items.length > 1) {
-          worksheet.mergeCells(`F${startRow}:F${currentRow - 1}`);
-          worksheet.mergeCells(`G${startRow}:G${currentRow - 1}`);
-        }
-        
-        worksheet.getCell(`F${startRow}`).value = transaction.total;
-        worksheet.getCell(`F${startRow}`).numFmt = '#,##0';
-        worksheet.getCell(`F${startRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
-        
-        totalSubtotal += transaction.total;
-
-        worksheet.getCell(`G${startRow}`).value = transaction.paymentMethod;
-        worksheet.getCell(`G${startRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
-        
-        if (transaction.paymentMethod.toLowerCase() === 'transfer') {
-          worksheet.getCell(`G${startRow}`).fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FFFF9900' }
-          };
-        }
-      });
-  
-      const totalRow = worksheet.getRow(currentRow);
-      worksheet.mergeCells(`A${currentRow}:B${currentRow}`);
-      worksheet.getCell(`A${currentRow}`).value = 'Grand Total';
-      worksheet.getCell(`A${currentRow}`).alignment = { horizontal: 'center' };
-      worksheet.getCell(`A${currentRow}`).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFFF9900' }
-      };
-      
-      totalRow.getCell('C').value = totalQty;
-      totalRow.getCell('D').value = totalPrice;
-      totalRow.getCell('E').value = totalSales;
-      totalRow.getCell('F').value = totalSubtotal;
-
-      const transactionCount = dayData.transactions.length;
-      totalRow.getCell('G').value = `${transactionCount} Transaksi`;
-      
-      totalRow.font = { bold: true };
-      ['C', 'D', 'E', 'F', 'G'].forEach(col => {
-        totalRow.getCell(col).numFmt = '#,##0';
-        totalRow.getCell(col).alignment = { horizontal: 'center' };
-      });
-      
-      currentRow++;
-  
-      ['Tunai', 'Transfer', `GrandTotal pendapatan ${dayData.date}`].forEach((label, idx) => {
-        worksheet.mergeCells(`A${currentRow}:F${currentRow}`);
-        const row = worksheet.getRow(currentRow);
-        row.getCell('A').value = label;
-        row.getCell('A').alignment = { horizontal: 'center' };
-        
-        const value = idx === 0 ? dayData.paymentSummary.cash :
-                     idx === 1 ? dayData.paymentSummary.transfer :
-                     dayData.dailyTotal;
-                     
-        row.getCell('G').value = value;
-        row.getCell('G').numFmt = '#,##0';
-        row.getCell('G').alignment = { horizontal: 'center' };
-        
-        if (idx === 1) {
-          row.getCell('A').fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FFFF9900' }
-          };
-        }
-        
-        row.font = { bold: true };
-        currentRow++;
-      });
-  
-      worksheet.eachRow((row, rowNumber) => {
-        if (rowNumber <= currentRow) {
-          row.eachCell({ includeEmpty: true }, cell => {
-            cell.border = {
-              top: { style: 'thin' },
-              left: { style: 'thin' },
-              bottom: { style: 'thin' },
-              right: { style: 'thin' }
+              fgColor: { argb: 'FFE6F0FF' }
             };
           });
         }
+
+        currentRow++;
       });
 
-      worksheet.columns = [
-        { width: 35 }, { width: 10 }, { width: 10 }, 
-        { width: 15 }, { width: 15 }, { width: 15 }, { width: 15 }
-      ];
+      if (transaction.items.length > 1) {
+        worksheet.mergeCells(`F${startRow}:F${currentRow - 1}`);
+        worksheet.mergeCells(`G${startRow}:G${currentRow - 1}`);
+        worksheet.mergeCells(`H${startRow}:H${currentRow - 1}`);
+      }
       
-      currentRow += 3;
-    }
-  
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Rekap_Penjualan_${new Date().toLocaleDateString('id-ID')}.xlsx`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+      worksheet.getCell(`F${startRow}`).value = transaction.total;
+      worksheet.getCell(`F${startRow}`).numFmt = '#,##0';
+      worksheet.getCell(`F${startRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
+      
+      totalSubtotal += transaction.total;
+
+      worksheet.getCell(`G${startRow}`).value = transaction.paymentMethod;
+      worksheet.getCell(`G${startRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
+      
+      if (transaction.paymentMethod.toLowerCase() === 'transfer') {
+        worksheet.getCell(`G${startRow}`).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFF9900' }
+        };
+      }
+
+      // Add internal/umum status
+      worksheet.getCell(`H${startRow}`).value = transaction.isInternal ? 'Internal' : 'Umum';
+      worksheet.getCell(`H${startRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
+
+      if (transaction.isInternal) {
+        internalTotal += transaction.total;
+        internalCount++;
+      }
+    });
+
+    const totalRow = worksheet.getRow(currentRow);
+    worksheet.mergeCells(`A${currentRow}:B${currentRow}`);
+    worksheet.getCell(`A${currentRow}`).value = 'Grand Total';
+    worksheet.getCell(`A${currentRow}`).alignment = { horizontal: 'center' };
+    worksheet.getCell(`A${currentRow}`).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFFF9900' }
+    };
+    
+    totalRow.getCell('C').value = totalQty;
+    totalRow.getCell('D').value = totalPrice;
+    totalRow.getCell('E').value = totalSales;
+    totalRow.getCell('F').value = totalSubtotal;
+
+    const transactionCount = dayData.transactions.length;
+    totalRow.getCell('G').value = `${transactionCount} Transaksi`;
+    totalRow.getCell('H').value = internalCount > 0 ? `${internalCount} Internal` : '';
+    
+    totalRow.font = { bold: true };
+    ['C', 'D', 'E', 'F', 'G', 'H'].forEach(col => {
+      totalRow.getCell(col).numFmt = '#,##0';
+      totalRow.getCell(col).alignment = { horizontal: 'center' };
+    });
+    
+    currentRow++;
+
+    ['Tunai', 'Transfer', 'Internal', `GrandTotal pendapatan ${dayData.date}`].forEach((label, idx) => {
+      worksheet.mergeCells(`A${currentRow}:G${currentRow}`);
+      const row = worksheet.getRow(currentRow);
+      row.getCell('A').value = label;
+      row.getCell('A').alignment = { horizontal: 'center' };
+      
+      const value = idx === 0 ? dayData.paymentSummary.cash :
+                   idx === 1 ? dayData.paymentSummary.transfer :
+                   idx === 2 ? internalTotal :
+                   totalSubtotal;
+                   
+      row.getCell('H').value = value;
+      row.getCell('H').numFmt = '#,##0';
+      row.getCell('H').alignment = { horizontal: 'center' };
+      
+      if (idx === 1) {
+        row.getCell('A').fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFF9900' }
+        };
+      }
+
+      if (idx === 2) {
+        row.getCell('A').fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFE6F0FF' }
+        };
+      }
+      
+      row.font = { bold: true };
+      currentRow++;
+    });
+
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber <= currentRow) {
+        row.eachCell({ includeEmpty: true }, cell => {
+          cell.border = {
+            top: { style: 'thin' },
+            left: { style: 'thin' },
+            bottom: { style: 'thin' },
+            right: { style: 'thin' }
+          };
+        });
+      }
+    });
+
+    worksheet.columns = [
+      { width: 35 }, { width: 10 }, { width: 10 }, 
+      { width: 15 }, { width: 15 }, { width: 15 }, 
+      { width: 15 }, { width: 15 }
+    ];
+    
+    currentRow += 3;
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Rekap_Penjualan_${new Date().toLocaleDateString('id-ID')}.xlsx`;
+  a.click();
+  window.URL.revokeObjectURL(url);
 };
 
 const exportCombinedReport = async (transactions) => {
@@ -187,35 +223,57 @@ const exportCombinedReport = async (transactions) => {
   const endDate = new Date(Math.max(...dates));
   const dateRange = `PerTgl ${startDate.getDate()} - ${endDate.getDate()} /${(startDate.getMonth() + 1).toString().padStart(2, '0')}/${startDate.getFullYear()}`;
 
-  // Headers
-  worksheet.mergeCells('A1:I1');
-  worksheet.mergeCells('J1:R1');
+  // Headers for three sections
+  worksheet.mergeCells('A1:H1');
+  worksheet.mergeCells('I1:P1');
+  worksheet.mergeCells('Q1:X1');
   worksheet.getCell('A1').value = `Penjualan Seragam ${dateRange}`;
-  worksheet.getCell('J1').value = `Penjualan ATK ${dateRange}`;
+  worksheet.getCell('I1').value = `Penjualan ATK ${dateRange}`;
+  worksheet.getCell('Q1').value = `Penjualan Internal ${dateRange}`;
   worksheet.getRow(1).font = { bold: true, size: 14 };
   worksheet.getRow(1).alignment = { horizontal: 'center' };
 
-  const headers = ['Nama Produk', 'Kategori', 'Jumlah Produk', 'Harga Produk', 'Penjualan Kotor', 'Subtotal', 'Total', 'Metode Pembayaran', 'Pembayaran'];
-  worksheet.getRow(3).values = [...headers, ...headers];
+  const headers = ['Nama Produk', 'Kategori', 'Jumlah Produk', 'Harga Produk', 'Penjualan Kotor', 'Subtotal', 'Metode Pembayaran', 'Jenis Pembeli'];
+  worksheet.getRow(3).values = [...headers, ...headers, ...headers];
   worksheet.getRow(3).font = { bold: true };
   worksheet.getRow(3).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
   worksheet.getRow(3).height = 30;
 
+  const getInternalLabel = (number) => {
+    const labels = {
+      1: 'TK',
+      2: 'SD',
+      3: 'SMP',
+      4: 'SMA',
+      5: 'MK'
+    };
+    return labels[number] || `Internal ${number}`;
+  };
+
+  // Separate transactions by type
   const seragamTransactions = transactions.map(t => ({
+    ...t,
     items: t.items.filter(item => item.kategori.toLowerCase().includes('seragam')),
-    paymentMethod: t.paymentMethod,
     total: t.items
       .filter(item => item.kategori.toLowerCase().includes('seragam'))
       .reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0)
-  })).filter(t => t.items.length > 0);
+  })).filter(t => t.items.length > 0 && !t.isInternal);
 
   const atkTransactions = transactions.map(t => ({
+    ...t,
     items: t.items.filter(item => !item.kategori.toLowerCase().includes('seragam')),
-    paymentMethod: t.paymentMethod,
     total: t.items
       .filter(item => !item.kategori.toLowerCase().includes('seragam'))
       .reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0)
-  })).filter(t => t.items.length > 0);
+  })).filter(t => t.items.length > 0 && !t.isInternal);
+
+  const internalTransactions = transactions
+    .filter(t => t.isInternal)
+    .map(t => ({
+      ...t,
+      items: t.items,
+      total: t.items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0)
+    }));
 
   let currentRow = 4;
 
@@ -232,16 +290,15 @@ const exportCombinedReport = async (transactions) => {
           item.price,
           item.price * item.quantity,
           transaction.total,
-          transaction.total,
           transaction.paymentMethod,
-          transaction.total
+          transaction.isInternal ? getInternalLabel(transaction.internalNumber) : 'Umum'
         ];
         
         values.forEach((value, colIdx) => {
           const cell = worksheet.getRow(row).getCell(startCol + colIdx + 1);
           cell.value = value;
           cell.alignment = colIdx === 0 ? { horizontal: 'left' } : { horizontal: 'center' };
-          if ([2, 3, 4, 5, 6, 8].includes(colIdx)) {
+          if ([2, 3, 4, 5].includes(colIdx)) {
             cell.numFmt = '#,##0';
           }
 
@@ -253,7 +310,15 @@ const exportCombinedReport = async (transactions) => {
             };
           }
 
-          if (colIdx === 7 && transaction.paymentMethod.toLowerCase() === 'transfer') {
+          if (transaction.isInternal) {
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: 'FFE6F0FF' }
+            };
+          }
+
+          if (colIdx === 6 && transaction.paymentMethod.toLowerCase() === 'transfer') {
             cell.fill = {
               type: 'pattern',
               pattern: 'solid',
@@ -265,7 +330,7 @@ const exportCombinedReport = async (transactions) => {
       });
 
       if (transaction.items.length > 0) {
-        [5, 6, 7, 8].forEach(colIdx => {
+        [5, 6, 7].forEach(colIdx => {
           if (startRow < row - 1) {
             worksheet.mergeCells(startRow, startCol + colIdx + 1, row - 1, startCol + colIdx + 1);
           }
@@ -278,31 +343,74 @@ const exportCombinedReport = async (transactions) => {
       } else if (method === 'cash' || method === 'tunai') {
         totals.tunai += transaction.total;
       }
+
+      if (transaction.isInternal) {
+        const internalKey = `internal${transaction.internalNumber}`;
+        totals[internalKey] = (totals[internalKey] || 0) + transaction.total;
+        totals.internalCount = (totals.internalCount || 0) + 1;
+      }
     });
     return row;
   };
 
   const seragamTotals = { transfer: 0, tunai: 0 };
   const atkTotals = { transfer: 0, tunai: 0 };
-  
+  const internalTotals = { 
+    transfer: 0, 
+    tunai: 0, 
+    internal1: 0, // TK
+    internal2: 0, // SD
+    internal3: 0, // SMP
+    internal4: 0, // SMA
+    internal5: 0, // MK
+    internalCount: 0 
+  };
+
+  // Write all sections
   const maxRow = Math.max(
     writeTransactions(seragamTransactions, 0, seragamTotals),
-    writeTransactions(atkTransactions, 9, atkTotals)
+    writeTransactions(atkTransactions, 8, atkTotals),
+    writeTransactions(internalTransactions, 16, internalTotals)
   );
   
   currentRow = maxRow + 1;
 
   const writeTotals = (startCol, totals, prefix) => {
-    const rows = [
-      [`Total Dana ${prefix} di Transfer`, totals.transfer],
-      [`Total Dana ${prefix} Tunai`, totals.tunai],
-      [`Total Dana ${prefix} Seluruhnya`, totals.transfer + totals.tunai]
-    ];
+    const rows = [];
 
-    rows.forEach(([label, value]) => {
-      worksheet.mergeCells(currentRow, startCol + 1, currentRow, startCol + 8);
+    if (prefix === 'Internal') {
+      // Add rows for each internal type with school names
+      const schoolNames = {
+        internal1: 'TK',
+        internal2: 'SD',
+        internal3: 'SMP',
+        internal4: 'SMA',
+        internal5: 'MK'
+      };
+
+      Object.entries(schoolNames).forEach(([key, label]) => {
+        const total = totals[key] || 0;
+        if (total > 0) {
+          rows.push([`Total ${label}`, total]);
+        }
+      });
+
+      rows.push([`Total Seluruh Internal`, Object.keys(totals)
+        .filter(key => key.startsWith('internal') && key !== 'internalCount')
+        .reduce((sum, key) => sum + (totals[key] || 0), 0)
+      ]);
+    } else {
+      rows.push(
+        [`Total Dana ${prefix} di Transfer`, totals.transfer],
+        [`Total Dana ${prefix} Tunai`, totals.tunai],
+        [`Total Dana ${prefix} Seluruhnya`, totals.transfer + totals.tunai]
+      );
+    }
+
+    rows.forEach(([label, value], index) => {
+      worksheet.mergeCells(currentRow, startCol + 1, currentRow, startCol + 7);
       const labelCell = worksheet.getRow(currentRow).getCell(startCol + 1);
-      const valueCell = worksheet.getRow(currentRow).getCell(startCol + 9);
+      const valueCell = worksheet.getRow(currentRow).getCell(startCol + 8);
       
       labelCell.value = label;
       labelCell.alignment = { horizontal: 'left' };
@@ -310,14 +418,78 @@ const exportCombinedReport = async (transactions) => {
       valueCell.numFmt = '#,##0';
       
       worksheet.getRow(currentRow).font = { bold: true };
+
+      // Apply special formatting
+      if (prefix === 'Internal' || label.includes('Internal')) {
+        labelCell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFE6F0FF' }
+        };
+        valueCell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFE6F0FF' }
+        };
+      } else if (label.includes('Transfer')) {
+        labelCell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFF9900' }
+        };
+        valueCell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFF9900' }
+        };
+      }
+      
       currentRow++;
     });
+
+    // Reset currentRow for next section
+    currentRow = maxRow + 1;
   };
 
+  // Write totals for all sections
   writeTotals(0, seragamTotals, 'Seragam');
-  currentRow -= 3;
-  writeTotals(9, atkTotals, 'ATK');
+  writeTotals(8, atkTotals, 'ATK');
+  writeTotals(16, internalTotals, 'Internal');
 
+  // Set the maximum row after writing all totals
+  currentRow = maxRow + Math.max(
+    Object.keys(seragamTotals).length,
+    Object.keys(atkTotals).length,
+    Object.keys(internalTotals).filter(key => internalTotals[key] > 0).length
+  ) + 3;
+
+  // Add grand totals
+  worksheet.mergeCells(currentRow, 1, currentRow, 24);
+  const grandTotalCell = worksheet.getRow(currentRow).getCell(1);
+  grandTotalCell.value = 'GRAND TOTAL PENJUALAN';
+  grandTotalCell.font = { bold: true, size: 12 };
+  grandTotalCell.alignment = { horizontal: 'center' };
+  grandTotalCell.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFFF9900' }
+  };
+
+  currentRow++;
+
+  // Calculate grand totals
+  const regularTotal = seragamTotals.transfer + seragamTotals.tunai + atkTotals.transfer + atkTotals.tunai;
+  const internalGrandTotal = Object.keys(internalTotals)
+    .filter(key => key.startsWith('internal') && key !== 'internalCount')
+    .reduce((sum, key) => sum + (internalTotals[key] || 0), 0);
+
+  worksheet.mergeCells(currentRow, 1, currentRow, 24);
+  const totalCell = worksheet.getRow(currentRow).getCell(1);
+  totalCell.value = `Regular: Rp ${regularTotal.toLocaleString()} | Internal: Rp ${internalGrandTotal.toLocaleString()} | Total: Rp ${(regularTotal + internalGrandTotal).toLocaleString()}`;
+  totalCell.font = { bold: true, size: 12 };
+  totalCell.alignment = { horizontal: 'center' };
+
+  // Add borders to all cells
   worksheet.eachRow((row, rowNumber) => {
     row.eachCell({ includeEmpty: true }, cell => {
       cell.border = {
@@ -329,9 +501,11 @@ const exportCombinedReport = async (transactions) => {
     });
   });
 
-  const columnWidth = [30, 10, 10, 10, 10, 10, 10, 15, 10];
-  worksheet.columns = [...columnWidth, ...columnWidth].map(width => ({ width }));
+  // Set column widths - repeat for each section
+  const columnWidth = [30, 10, 10, 10, 10, 10, 15, 10];
+  worksheet.columns = [...columnWidth, ...columnWidth, ...columnWidth].map(width => ({ width }));
 
+  // Generate and download file
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { 
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 

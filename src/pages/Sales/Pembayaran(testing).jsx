@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,14 +7,44 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { transactionService } from '@/lib/db/TransactionService';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { 
-  ArrowLeft, Wallet, Building2, Package2, CheckCircle2,
-  AlertCircle, Receipt, Printer, School
+  ArrowLeft, 
+  Wallet, 
+  Building2, 
+  Package2, 
+  CheckCircle2,
+  AlertCircle, 
+  Receipt, 
+  Printer, 
+  School, 
+  Calendar 
 } from 'lucide-react';
 
 const Pembayaran = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { cart, subtotal, transactionId } = location.state;
+  const { cart, subtotal, transactionId } = location.state || {};
+
+  const getCurrentDate = () => {
+    const today = new Date();
+    const day = String(today.getDate()).padStart(2, '0');
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  const getCurrentISODate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
+  const formatDisplayDate = (isoDate) => {
+    const date = new Date(isoDate);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
   
   const [paymentMethod, setPaymentMethod] = useState('');
   const [cashAmount, setCashAmount] = useState('');
@@ -23,14 +53,7 @@ const Pembayaran = () => {
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [isInternal, setIsInternal] = useState(false);
   const [internalNumber, setInternalNumber] = useState(null);
-
-  const internalOptions = [
-    { value: 1, label: 'TK' },
-    { value: 2, label: 'SD' },
-    { value: 3, label: 'SMP' },
-    { value: 4, label: 'SMA' },
-    { value: 5, label: 'MK' },
-  ];
+  const [transactionDate, setTransactionDate] = useState(getCurrentISODate());
 
   const paymentMethods = [
     {
@@ -47,18 +70,14 @@ const Pembayaran = () => {
     }
   ];
 
-  const getCurrentDate = () => {
-    const today = new Date();
-    const day = String(today.getDate()).padStart(2, '0');
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const year = today.getFullYear();
-    return `${day}/${month}/${year}`;
-  };
+  const internalOptions = [
+    { value: 1, label: 'TK' },
+    { value: 2, label: 'SD' },
+    { value: 3, label: 'SMP' },
+    { value: 4, label: 'SMA' },
+    { value: 5, label: 'MK' },
+  ];
 
-  const getCurrentISODate = () => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  };
 
   const commonAmounts = [
     { value: 10000, label: '10.000' },
@@ -68,33 +87,6 @@ const Pembayaran = () => {
   ];
   
   const change = cashAmount ? parseInt(cashAmount.replace(/\D/g, '')) - subtotal : 0;
-
-  const handlePayment = async () => {
-    try {
-      setIsProcessing(true);
-      setError(null);
-
-      const transactionData = {
-        transactionId,
-        date: getCurrentISODate(),
-        subtotal,
-        paymentMethod,
-        cashAmount: paymentMethod === 'cash' ? parseInt(cashAmount.replace(/\D/g, '')) : subtotal,
-        change: paymentMethod === 'cash' ? change : 0,
-        status: 'completed',
-        isInternal,
-        internalNumber: isInternal && internalNumber ? parseInt(internalNumber) : null
-      };
-
-      await transactionService.processTransaction(transactionData, cart);
-      setShowSuccessDialog(true);
-    } catch (err) {
-      setError('Gagal memproses pembayaran: ' + err.message);
-      console.error('Payment error:', err);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
 
   const handlePrintReceipt = async () => {
     try {
@@ -114,17 +106,6 @@ const Pembayaran = () => {
           return label + '.'.repeat(Math.max(0, labelSpace - label.length)) + ': ' + valueStr;
         };
   
-        // Format tanggal dan waktu
-        const formatDateTime = () => {
-          const d = new Date();
-          const day = String(d.getDate()).padStart(2, '0');
-          const month = String(d.getMonth() + 1).padStart(2, '0');
-          const year = d.getFullYear();
-          const hours = String(d.getHours()).padStart(2, '0');
-          const minutes = String(d.getMinutes()).padStart(2, '0');
-          return `${day}/${month}/${year} ${hours}:${minutes}`;
-        };
-  
         let receipt = '';
         
         // Reset printer dan set align center
@@ -141,19 +122,17 @@ const Pembayaran = () => {
         // Set align left untuk konten
         receipt += '\x1B\x61\x00';
         
-        // Info Transaksi yang lebih lengkap
-        receipt += `Tgl  : ${formatDateTime()}\n`;
+        // Info Transaksi
+        receipt += `Tgl  : ${formatDisplayDate(transactionDate)}\n`;
         receipt += `No   : ${transactionId}\n`;
         receipt += `Bayar: ${paymentMethod === 'cash' ? 'TUNAI' : 'TRANSFER'}\n`;
         if (isInternal) {
-          receipt += 'Jenis: INTERNAL (SEKOLAH)\n';
+          receipt += `Jenis: INTERNAL ${internalNumber}\n`;
         }
         receipt += '--------------------------------\n';
         
-        // Informasi item yang dibeli
+        // Informasi item
         let totalQty = 0;
-        let totalItems = transactionDetails.length;
-        
         transactionDetails.forEach(item => {
           totalQty += item.quantity;
           const itemTotal = item.price * item.quantity;
@@ -167,25 +146,18 @@ const Pembayaran = () => {
             itemName = itemName.substring(0, maxNameLength - 3) + '...';
           }
           
-          // Padding nama dan total
           receipt += `${itemName}${rightAlign(itemTotalStr, PAPER_WIDTH - itemName.length)}\n`;
-          
-          // Qty dan harga satuan
-          const qtyPrice = `  ${item.quantity} x ${item.price.toLocaleString()}`;
-          receipt += qtyPrice + '\n';
+          receipt += `  ${item.quantity} x ${item.price.toLocaleString()}\n`;
         });
         
         receipt += '--------------------------------\n';
         
-        // Ringkasan item
-        receipt += `Total Item : ${totalItems} (${totalQty} pcs)\n`;
-        
-        // Summary pembayaran
+        // Summary
+        receipt += `Total Item : ${transactionDetails.length} (${totalQty} pcs)\n`;
         receipt += createLabelWithDots('Subtotal', subtotal.toLocaleString()) + '\n';
         
         if (paymentMethod === 'cash') {
-          const cashAmountFormatted = parseInt(cashAmount.replace(/\D/g, '')).toLocaleString();
-          receipt += createLabelWithDots('Tunai', cashAmountFormatted) + '\n';
+          receipt += createLabelWithDots('Tunai', parseInt(cashAmount.replace(/\D/g, '')).toLocaleString()) + '\n';
           receipt += createLabelWithDots('Kembali', change.toLocaleString()) + '\n';
         } else {
           receipt += createLabelWithDots('Transfer', subtotal.toLocaleString()) + '\n';
@@ -204,7 +176,7 @@ const Pembayaran = () => {
         receipt += '--------------------------------\n';
         
         // Cut command
-        receipt += '\x1D\x56\x42';
+        receipt += '\x1D\x56\x42\x00';
         
         return receipt;
       };
@@ -232,6 +204,33 @@ const Pembayaran = () => {
     }
   };
 
+  const handlePayment = async () => {
+    try {
+      setIsProcessing(true);
+      setError(null);
+
+      const transactionData = {
+        transactionId,
+        date: transactionDate,
+        subtotal,
+        paymentMethod,
+        cashAmount: paymentMethod === 'cash' ? parseInt(cashAmount.replace(/\D/g, '')) : subtotal,
+        change: paymentMethod === 'cash' ? change : 0,
+        status: 'completed',
+        isInternal,
+        internalNumber: isInternal && internalNumber ? parseInt(internalNumber) : null
+      };
+
+      await transactionService.processTransaction(transactionData, cart);
+      setShowSuccessDialog(true);
+    } catch (err) {
+      setError('Gagal memproses pembayaran: ' + err.message);
+      console.error('Payment error:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   return (
     <div className="container mx-auto py-6 max-w-6xl">
       <Button 
@@ -249,81 +248,6 @@ const Pembayaran = () => {
         </Alert>
       )}
 
-      <Dialog open={showSuccessDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-green-600">
-              <CheckCircle2 className="h-6 w-6" />
-              Pembayaran Berhasil!
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4 text-black">
-            <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">ID Transaksi:</span>
-                <span className="font-medium">{transactionId}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Total:</span>
-                <span className="font-medium">Rp {subtotal.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Metode:</span>
-                <span className="font-medium">
-                  {paymentMethod === 'cash' ? 'Tunai' : 'Transfer Bank'}
-                </span>
-              </div>
-              {isInternal && (
-    <div className="flex justify-between text-sm">
-      <span className="text-gray-600">Jenis:</span>
-      <span className="font-medium text-blue-600 flex items-center">
-        <School className="h-4 w-4 mr-1" />
-        {internalOptions.find(opt => opt.value === internalNumber)?.label || 'Internal'}
-      </span>
-    </div>
-  )}
-              {paymentMethod === 'cash' && (
-                <>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Dibayar:</span>
-                    <span className="font-medium">
-                      Rp {parseInt(cashAmount.replace(/\D/g, '')).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Kembalian:</span>
-                    <span className="font-medium text-green-600">
-                      Rp {change.toLocaleString()}
-                    </span>
-                  </div>
-                </>
-              )}
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Tanggal:</span>
-                <span className="font-medium">{getCurrentDate()}</span>
-              </div>
-            </div>
-          </div>
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button
-              variant="outline"
-              onClick={() => navigate('/penjualan')}
-              className="w-full sm:w-auto"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Kembali
-            </Button>
-            <Button 
-              className="w-full sm:w-auto"
-              onClick={handlePrintReceipt}
-            >
-              <Printer className="mr-2 h-4 w-4" />
-              Cetak Nota
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="h-fit shadow-sm">
           <CardHeader className="border-b bg-white">
@@ -333,7 +257,21 @@ const Pembayaran = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
-            <div className="space-y-4 pt-3">
+            {/* Date Input Section */}
+            <div className="mb-6 space-y-2">
+              <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Tanggal Transaksi
+              </label>
+              <Input
+                type="date"
+                value={transactionDate}
+                onChange={(e) => setTransactionDate(e.target.value)}
+                className="w-full"
+              />
+            </div>
+
+            <div className="space-y-4">
               <div className="space-y-3">
                 {cart.map((item) => (
                   <div 
@@ -358,7 +296,7 @@ const Pembayaran = () => {
               
               <div className="border-t pt-4">
                 <div className="flex justify-between text-sm text-gray-600 mb-2">
-                <span>Jumlah Item:</span>
+                  <span>Jumlah Item:</span>
                   <span>{cart.reduce((sum, item) => sum + item.quantity, 0)} barang</span>
                 </div>
                 <div className="flex justify-between font-semibold text-lg">
@@ -379,46 +317,46 @@ const Pembayaran = () => {
           </CardHeader>
           <CardContent className="p-6 mt-3">
             <div className="space-y-4">
-            <div className="space-y-2">
-            <Button
-              variant="outline"
-              className={`w-full ${
-                isInternal 
-                  ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100' 
-                  : 'bg-white hover:bg-gray-50'
-              }`}
-              onClick={() => {
-                setIsInternal(!isInternal);
-                if (!isInternal) {
-                  setInternalNumber(1);
-                } else {
-                  setInternalNumber(null);
-                }
-              }}
-            >
-              <School className={`mr-2 h-5 w-5 ${isInternal ? 'text-blue-600' : 'text-gray-500'}`} />
-              {isInternal ? 'Pembelian Internal' : 'Pembelian Umum'}
-            </Button>
+              <div className="space-y-2">
+                <Button
+                  variant="outline"
+                  className={`w-full ${
+                    isInternal 
+                      ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100' 
+                      : 'bg-white hover:bg-gray-50'
+                  }`}
+                  onClick={() => {
+                    setIsInternal(!isInternal);
+                    if (!isInternal) {
+                      setInternalNumber(1);
+                    } else {
+                      setInternalNumber(null);
+                    }
+                  }}
+                >
+                  <School className={`mr-2 h-5 w-5 ${isInternal ? 'text-blue-600' : 'text-gray-500'}`} />
+                  {isInternal ? 'Pembelian Internal' : 'Pembelian Umum'}
+                </Button>
 
-            {isInternal && (
-              <div className="grid grid-cols-5 gap-2 mt-2">
-                {internalOptions.map((option) => (
-                  <Button
-                    key={option.value}
-                    variant="outline"
-                    className={`${
-                      internalNumber === option.value
-                        ? 'bg-blue-50 border-blue-200 text-blue-700'
-                        : 'bg-white'
-                    }`}
-                    onClick={() => setInternalNumber(option.value)}
-                  >
-                    Internal {option.value}
-                  </Button>
-                ))}
+                {isInternal && (
+                  <div className="grid grid-cols-5 gap-2 mt-2">
+                    {internalOptions.map((option) => (
+                      <Button
+                        key={option.value}
+                        variant="outline"
+                        className={`${
+                          internalNumber === option.value
+                            ? 'bg-blue-50 border-blue-200 text-blue-700'
+                            : 'bg-white'
+                        }`}
+                        onClick={() => setInternalNumber(option.value)}
+                      >
+                        Internal {option.value}
+                      </Button>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
               <div className="grid grid-cols-1 gap-3">
                 {paymentMethods.map((method) => {
@@ -573,6 +511,81 @@ const Pembayaran = () => {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={showSuccessDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-600">
+              <CheckCircle2 className="h-6 w-6" />
+              Pembayaran Berhasil!
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4 text-black">
+            <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">ID Transaksi:</span>
+                <span className="font-medium">{transactionId}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Tanggal:</span>
+                <span className="font-medium">{formatDisplayDate(transactionDate)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Total:</span>
+                <span className="font-medium">Rp {subtotal.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Metode:</span>
+                <span className="font-medium">
+                  {paymentMethod === 'cash' ? 'Tunai' : 'Transfer Bank'}
+                </span>
+              </div>
+              {isInternal && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Jenis:</span>
+                  <span className="font-medium text-blue-600 flex items-center">
+                  <School className="h-4 w-4 mr-1" />
+        {internalOptions.find(opt => opt.value === internalNumber)?.label || 'Internal'}
+      </span>
+                </div>
+              )}
+              {paymentMethod === 'cash' && (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Dibayar:</span>
+                    <span className="font-medium">
+                      Rp {parseInt(cashAmount.replace(/\D/g, '')).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Kembalian:</span>
+                    <span className="font-medium text-green-600">
+                      Rp {change.toLocaleString()}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => navigate('/penjualan')}
+              className="w-full sm:w-auto"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Kembali
+            </Button>
+            <Button 
+              className="w-full sm:w-auto"
+              onClick={handlePrintReceipt}
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              Cetak Nota
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
