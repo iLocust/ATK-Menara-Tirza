@@ -114,7 +114,6 @@ const Pembayaran = () => {
           return label + '.'.repeat(Math.max(0, labelSpace - label.length)) + ': ' + valueStr;
         };
   
-        // Format tanggal dan waktu
         const formatDateTime = () => {
           const d = new Date();
           const day = String(d.getDate()).padStart(2, '0');
@@ -127,30 +126,26 @@ const Pembayaran = () => {
   
         let receipt = '';
         
-        // Reset printer dan set align center
         receipt += '\x1B\x40'; // Initialize printer
         receipt += '\x1B\x61\x01'; // Align center
         
-        // Header
         receipt += '--------------------------------\n';
         receipt += '           TOKO ATK             \n';
         receipt += '       Alamat Toko ATK          \n';
         receipt += '       Tel: 08123456789         \n';
         receipt += '--------------------------------\n';
         
-        // Set align left untuk konten
         receipt += '\x1B\x61\x00';
         
-        // Info Transaksi yang lebih lengkap
         receipt += `Tgl  : ${formatDateTime()}\n`;
         receipt += `No   : ${transactionId}\n`;
         receipt += `Bayar: ${paymentMethod === 'cash' ? 'TUNAI' : 'TRANSFER'}\n`;
         if (isInternal) {
-          receipt += 'Jenis: INTERNAL (SEKOLAH)\n';
+          const internalLabel = internalOptions.find(opt => opt.value === internalNumber)?.label || 'Internal';
+          receipt += `Jenis: INTERNAL (${internalLabel})\n`;
         }
         receipt += '--------------------------------\n';
         
-        // Informasi item yang dibeli
         let totalQty = 0;
         let totalItems = transactionDetails.length;
         
@@ -159,7 +154,6 @@ const Pembayaran = () => {
           const itemTotal = item.price * item.quantity;
           const itemTotalStr = itemTotal.toLocaleString();
           
-          // Format nama item dan kategori
           let itemName = `${item.name} (${item.kategori || 'Umum'})`;
           const maxNameLength = PAPER_WIDTH - itemTotalStr.length - 1;
           
@@ -167,20 +161,16 @@ const Pembayaran = () => {
             itemName = itemName.substring(0, maxNameLength - 3) + '...';
           }
           
-          // Padding nama dan total
           receipt += `${itemName}${rightAlign(itemTotalStr, PAPER_WIDTH - itemName.length)}\n`;
           
-          // Qty dan harga satuan
           const qtyPrice = `  ${item.quantity} x ${item.price.toLocaleString()}`;
           receipt += qtyPrice + '\n';
         });
         
         receipt += '--------------------------------\n';
         
-        // Ringkasan item
         receipt += `Total Item : ${totalItems} (${totalQty} pcs)\n`;
         
-        // Summary pembayaran
         receipt += createLabelWithDots('Subtotal', subtotal.toLocaleString()) + '\n';
         
         if (paymentMethod === 'cash') {
@@ -193,7 +183,6 @@ const Pembayaran = () => {
           receipt += 'a.n Ekatina Harimuliawati\n';
         }
         
-        // Footer
         receipt += '\x1B\x61\x01'; // Set align center
         receipt += '--------------------------------\n';
         receipt += 'Simpan struk ini sebagai\n';
@@ -203,7 +192,6 @@ const Pembayaran = () => {
         receipt += '     Selamat Belanja Kembali    \n';
         receipt += '--------------------------------\n';
         
-        // Cut command
         receipt += '\x1D\x56\x42';
         
         return receipt;
@@ -274,14 +262,14 @@ const Pembayaran = () => {
                 </span>
               </div>
               {isInternal && (
-    <div className="flex justify-between text-sm">
-      <span className="text-gray-600">Jenis:</span>
-      <span className="font-medium text-blue-600 flex items-center">
-        <School className="h-4 w-4 mr-1" />
-        {internalOptions.find(opt => opt.value === internalNumber)?.label || 'Internal'}
-      </span>
-    </div>
-  )}
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Jenis:</span>
+                  <span className="font-medium text-blue-600 flex items-center">
+                    <School className="h-4 w-4 mr-1" />
+                    {internalOptions.find(opt => opt.value === internalNumber)?.label || 'Internal'}
+                  </span>
+                </div>
+              )}
               {paymentMethod === 'cash' && (
                 <>
                   <div className="flex justify-between text-sm">
@@ -358,7 +346,7 @@ const Pembayaran = () => {
               
               <div className="border-t pt-4">
                 <div className="flex justify-between text-sm text-gray-600 mb-2">
-                <span>Jumlah Item:</span>
+                  <span>Jumlah Item:</span>
                   <span>{cart.reduce((sum, item) => sum + item.quantity, 0)} barang</span>
                 </div>
                 <div className="flex justify-between font-semibold text-lg">
@@ -379,46 +367,46 @@ const Pembayaran = () => {
           </CardHeader>
           <CardContent className="p-6 mt-3">
             <div className="space-y-4">
-            <div className="space-y-2">
-            <Button
-              variant="outline"
-              className={`w-full ${
-                isInternal 
-                  ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100' 
-                  : 'bg-white hover:bg-gray-50'
-              }`}
-              onClick={() => {
-                setIsInternal(!isInternal);
-                if (!isInternal) {
-                  setInternalNumber(1);
-                } else {
-                  setInternalNumber(null);
-                }
-              }}
-            >
-              <School className={`mr-2 h-5 w-5 ${isInternal ? 'text-blue-600' : 'text-gray-500'}`} />
-              {isInternal ? 'Pembelian Internal' : 'Pembelian Umum'}
-            </Button>
+              <div className="space-y-2">
+                <Button
+                  variant="outline"
+                  className={`w-full ${
+                    isInternal 
+                      ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100' 
+                      : 'bg-white hover:bg-gray-50'
+                  }`}
+                  onClick={() => {
+                    setIsInternal(!isInternal);
+                    if (!isInternal) {
+                      setInternalNumber(1);
+                    } else {
+                      setInternalNumber(null);
+                    }
+                  }}
+                >
+                  <School className={`mr-2 h-5 w-5 ${isInternal ? 'text-blue-600' : 'text-gray-500'}`} />
+                  {isInternal ? 'Pembelian Internal' : 'Pembelian Umum'}
+                </Button>
 
-            {isInternal && (
-              <div className="grid grid-cols-5 gap-2 mt-2">
-                {internalOptions.map((option) => (
-                  <Button
-                    key={option.value}
-                    variant="outline"
-                    className={`${
-                      internalNumber === option.value
-                        ? 'bg-blue-50 border-blue-200 text-blue-700'
-                        : 'bg-white'
-                    }`}
-                    onClick={() => setInternalNumber(option.value)}
-                  >
-                    Internal {option.value}
-                  </Button>
-                ))}
+                {isInternal && (
+                  <div className="grid grid-cols-5 gap-2 mt-2">
+                    {internalOptions.map((option) => (
+                      <Button
+                        key={option.value}
+                        variant="outline"
+                        className={`${
+                          internalNumber === option.value
+                            ? 'bg-blue-50 border-blue-200 text-blue-700'
+                            : 'bg-white'
+                        }`}
+                        onClick={() => setInternalNumber(option.value)}
+                      >
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
               <div className="grid grid-cols-1 gap-3">
                 {paymentMethods.map((method) => {
