@@ -7,6 +7,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AlertCircle } from 'lucide-react';
+import { useState } from 'react';
 
 const ShoppingCart = ({ 
   cart, 
@@ -15,15 +16,37 @@ const ShoppingCart = ({
   onCheckout 
 }) => {
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  
+  // State untuk menyimpan nilai input sementara
+  const [inputValues, setInputValues] = useState({});
 
   const handleQuantityChange = (itemId, value) => {
+    // Update nilai input di state lokal
+    setInputValues(prev => ({
+      ...prev,
+      [itemId]: value
+    }));
+
+    // Jika input kosong, biarkan dulu
+    if (value === '') return;
+
     const numValue = parseInt(value, 10);
+    // Hanya update ke parent jika nilai valid
     if (!isNaN(numValue) && numValue >= 0) {
       const item = cart.find(item => item.id === itemId);
       if (item && numValue <= item.stock) {
         onUpdateQuantity(itemId, numValue);
       }
     }
+  };
+
+  const handleBlur = (itemId) => {
+    // Saat input kehilangan fokus, kembalikan ke nilai quantity yang valid
+    const item = cart.find(item => item.id === itemId);
+    setInputValues(prev => ({
+      ...prev,
+      [itemId]: item.quantity.toString()
+    }));
   };
 
   return (
@@ -56,8 +79,9 @@ const ShoppingCart = ({
                   </Button>
                   <Input
                     type="number"
-                    value={item.quantity}
+                    value={inputValues[item.id] ?? item.quantity}
                     onChange={(e) => handleQuantityChange(item.id, e.target.value)}
+                    onBlur={() => handleBlur(item.id)}
                     className="w-16 text-center h-8"
                     min="0"
                     max={item.stock}
