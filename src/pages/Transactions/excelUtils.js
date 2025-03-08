@@ -245,7 +245,9 @@ const exportCombinedReport = async (transactions) => {
       2: 'SD',
       3: 'SMP',
       4: 'SMA',
-      5: 'MK'
+      5: 'MK',
+      6: 'ADMIN',  // Add this new mapping
+
     };
     return labels[number] || `Internal ${number}`;
   };
@@ -363,6 +365,7 @@ const exportCombinedReport = async (transactions) => {
     internal3: 0, // SMP
     internal4: 0, // SMA
     internal5: 0, // MK
+    internal6: 0, // Admin - Add this line
     internalCount: 0 
   };
 
@@ -385,7 +388,9 @@ const exportCombinedReport = async (transactions) => {
         internal2: 'SD',
         internal3: 'SMP',
         internal4: 'SMA',
-        internal5: 'MK'
+        internal5: 'MK',
+        internal6: 'ADMIN'  // Add this line
+
       };
 
       Object.entries(schoolNames).forEach(([key, label]) => {

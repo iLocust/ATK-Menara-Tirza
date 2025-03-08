@@ -30,6 +30,8 @@ const Pembayaran = () => {
     { value: 3, label: 'SMP' },
     { value: 4, label: 'SMA' },
     { value: 5, label: 'MK' },
+    { value: 6, label: 'ADMIN' },  // Add this new option
+
   ];
 
   const paymentMethods = [
@@ -389,7 +391,7 @@ const Pembayaran = () => {
                 </Button>
 
                 {isInternal && (
-                  <div className="grid grid-cols-5 gap-2 mt-2">
+                  <div className="grid grid-cols-3 gap-2 mt-2">
                     {internalOptions.map((option) => (
                       <Button
                         key={option.value}

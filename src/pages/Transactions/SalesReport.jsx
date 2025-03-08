@@ -30,7 +30,8 @@ const SalesReport = () => {
       2: 'SD',
       3: 'SMP',
       4: 'SMA',
-      5: 'MK'
+      5: 'MK',
+      6: 'ADMIN'
     };
     return labels[number] || `Internal ${number}`;
   };
@@ -124,7 +125,8 @@ const SalesReport = () => {
               2: { count: 0, total: 0 },
               3: { count: 0, total: 0 },
               4: { count: 0, total: 0 },
-              5: { count: 0, total: 0 }
+              5: { count: 0, total: 0 },
+              6: { count: 0, total: 0 },
             }
           },
           transactions: [],
@@ -168,7 +170,9 @@ const SalesReport = () => {
       2: { count: 0, total: 0 },
       3: { count: 0, total: 0 },
       4: { count: 0, total: 0 },
-      5: { count: 0, total: 0 }
+      5: { count: 0, total: 0 },
+      6: { count: 0, total: 0 }  // Add this line
+
     };
 
     dailyGroups.forEach(day => {
